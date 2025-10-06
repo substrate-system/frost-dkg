@@ -14,32 +14,32 @@ const ED25519_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n
 class ModularArithmetic {
     prime:bigint
 
-    constructor (prime) {
+    constructor (prime: bigint | number | string) {
         this.prime = BigInt(prime)
     }
 
-    mod (n) {
+    mod (n: bigint | number | string): bigint {
         const result = BigInt(n) % this.prime
         return result < 0n ? result + this.prime : result
     }
 
-    add (a, b) {
+    add (a: bigint | number | string, b: bigint | number | string): bigint {
         return this.mod(BigInt(a) + BigInt(b))
     }
 
-    sub (a, b) {
+    sub (a: bigint | number | string, b: bigint | number | string): bigint {
         return this.mod(BigInt(a) - BigInt(b))
     }
 
-    mul (a, b) {
+    mul (a: bigint | number | string, b: bigint | number | string): bigint {
         return this.mod(BigInt(a) * BigInt(b))
     }
 
-    pow (base, exp) {
+    pow (base: bigint | number | string, exp: bigint | number | string): bigint {
         return this.modPow(BigInt(base), BigInt(exp), this.prime)
     }
 
-    modPow (base, exponent, modulus) {
+    modPow (base: bigint, exponent: bigint, modulus: bigint): bigint {
         if (modulus === 1n) return 0n
         let result = 1n
         base = base % modulus
@@ -53,7 +53,7 @@ class ModularArithmetic {
         return result
     }
 
-    inverse (a) {
+    inverse (a: bigint | number | string): bigint {
     // Extended Euclidean algorithm for modular inverse
         let t = 0n; let newT = 1n
         let r = this.prime; let newR = this.mod(a)
@@ -75,7 +75,7 @@ const scalarMath = new ModularArithmetic(ED25519_ORDER)
 /**
  * Utility functions
  */
-function bytesToBigInt (bytes) {
+function bytesToBigInt (bytes: Uint8Array): bigint {
     let result = 0n
     for (const byte of bytes) {
         result = (result << 8n) | BigInt(byte)
@@ -83,76 +83,10 @@ function bytesToBigInt (bytes) {
     return result
 }
 
-function bigIntToBytes (n, length = 32) {
-    const bytes:number[] = []
-    let num = n
-    for (let i = 0; i < length; i++) {
-        bytes.unshift(Number(num & 0xFFn))
-        num = num >> 8n
-    }
-    return new Uint8Array(bytes)
-}
-
-function randomScalar () {
-    const bytes = new Uint8Array(32)
-    crypto.getRandomValues(bytes)
-    // Clamp to valid Ed25519 scalar
-    return scalarMath.mod(bytesToBigInt(bytes))
-}
-
-async function hashToScalar (...inputs) {
-    const concatenated = inputs.reduce((acc, input) => {
-        const arr = new Uint8Array(acc.length + input.length)
-        arr.set(acc)
-        arr.set(input, acc.length)
-        return arr
-    }, new Uint8Array(0))
-
-    const hash = await crypto.subtle.digest('SHA-512', concatenated)
-    const hashBytes = new Uint8Array(hash)
-    return scalarMath.mod(bytesToBigInt(hashBytes))
-}
-
-/**
- * Ed25519 operations using Web Crypto API
- */
-async function scalarMultiplyBase (scalar) {
-    const scalarBytes = bigIntToBytes(scalar)
-
-    // Import as Ed25519 private key
-    const privateKey = await crypto.subtle.importKey(
-        'raw',
-        scalarBytes,
-        { name: 'Ed25519' },
-        true,
-        ['sign']
-    )
-
-    // Export to get public key (which is the scalar multiplied by base point)
-    const jwk = await crypto.subtle.exportKey('jwk', privateKey)
-
-    // Generate a dummy signature to extract the public key
-    const dummyMessage = new Uint8Array(32)
-    await crypto.subtle.sign('Ed25519', privateKey, dummyMessage)
-
-    // The public key is G^scalar
-    const publicKeyJwk = await crypto.subtle.exportKey('jwk', privateKey)
-
-    // For Ed25519, we can derive the public key
-    const keyPair = await crypto.subtle.generateKey(
-        { name: 'Ed25519' },
-        true,
-        ['sign', 'verify']
-    )
-
-    // Better approach: use the scalar as seed for key generation
-    return scalarBytes // Placeholder - in production use proper Ed25519 library
-}
-
 /**
  * X25519 key agreement for encrypted channels
  */
-async function generateX25519KeyPair () {
+async function generateX25519KeyPair (): Promise<CryptoKeyPair> {
     return await crypto.subtle.generateKey(
         { name: 'X25519' },
         true,
@@ -160,7 +94,7 @@ async function generateX25519KeyPair () {
     )
 }
 
-async function deriveSharedSecret (privateKey, publicKey) {
+async function deriveSharedSecret (privateKey: CryptoKey, publicKey: CryptoKey): Promise<Uint8Array> {
     const sharedSecret = await crypto.subtle.deriveBits(
         { name: 'X25519', public: publicKey },
         privateKey,
@@ -169,7 +103,7 @@ async function deriveSharedSecret (privateKey, publicKey) {
     return new Uint8Array(sharedSecret)
 }
 
-async function encryptShare (sharedSecret, plaintext) {
+async function encryptShare (sharedSecret: Uint8Array, plaintext: Uint8Array): Promise<Uint8Array> {
     // Derive encryption key from shared secret
     const key = await crypto.subtle.importKey(
         'raw',
@@ -196,7 +130,7 @@ async function encryptShare (sharedSecret, plaintext) {
     return result
 }
 
-async function decryptShare (sharedSecret, encrypted) {
+async function decryptShare (sharedSecret: Uint8Array, encrypted: Uint8Array): Promise<Uint8Array> {
     const iv = encrypted.slice(0, 12)
     const ciphertext = encrypted.slice(12)
 
@@ -217,11 +151,36 @@ async function decryptShare (sharedSecret, encrypted) {
     return new Uint8Array(plaintext)
 }
 
+interface SchnorrProof {
+    R: Uint8Array
+    s: bigint
+    A: Uint8Array
+}
+
+interface ReceivedShareData {
+    share: bigint
+    commitments: Uint8Array[]
+}
+
 /**
  * FROST DKG Participant
  */
 class FrostParticipant {
-    constructor (id, threshold, totalParticipants) {
+    id: bigint
+    threshold: number
+    n: number
+    coefficients: bigint[] | null
+    commitments: Uint8Array[] | null
+    proofOfKnowledge: SchnorrProof | null
+    x25519KeyPair: CryptoKeyPair | null
+    peerPublicKeys: Map<bigint, CryptoKey>
+    shares: Map<bigint, bigint>
+    receivedShares: Map<bigint, ReceivedShareData>
+    secretShare: bigint | null
+    publicKey: Uint8Array | null
+    verificationShare: Uint8Array | null
+
+    constructor (id: number | bigint, threshold: number, totalParticipants: number) {
         this.id = BigInt(id)
         this.threshold = threshold
         this.n = totalParticipants
@@ -634,19 +593,55 @@ class FrostDKG {
     }
 }
 
+function bigIntToBytes (n:bigint, length = 32):Uint8Array {
+    const bytes:number[] = []
+    let num = n
+    for (let i = 0; i < length; i++) {
+        bytes.unshift(Number(num & 0xFFn))
+        num = num >> 8n
+    }
+    return new Uint8Array(bytes)
+}
+
+function randomScalar (): bigint {
+    const bytes = new Uint8Array(32)
+    crypto.getRandomValues(bytes)
+    // Clamp to valid Ed25519 scalar
+    return scalarMath.mod(bytesToBigInt(bytes))
+}
+
+async function hashToScalar (...inputs: Uint8Array[]): Promise<bigint> {
+    const concatenated = inputs.reduce((acc, input) => {
+        const arr = new Uint8Array(acc.length + input.length)
+        arr.set(acc)
+        arr.set(input, acc.length)
+        return arr
+    }, new Uint8Array(0))
+
+    const hash = await crypto.subtle.digest('SHA-512', concatenated)
+    const hashBytes = new Uint8Array(hash)
+    return scalarMath.mod(bytesToBigInt(hashBytes))
+}
+
 /**
- * Example usage
+ * Ed25519 operations using Web Crypto API
  */
-async function example () {
-    const dkg = new FrostDKG(3, 5) // 3-of-5 threshold
-    const result = await dkg.run()
-    return result
-}
+async function scalarMultiplyBase (scalar: bigint): Promise<Uint8Array> {
+    const scalarBytes = bigIntToBytes(scalar)
 
-// Export for use
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { FrostDKG, FrostParticipant }
-}
+    // Import as Ed25519 private key
+    const privateKey = await crypto.subtle.importKey(
+        'raw',
+        scalarBytes,
+        { name: 'Ed25519' },
+        true,
+        ['sign']
+    )
 
-// Run example
-example().catch(console.error)
+    // Generate a dummy signature to extract the public key
+    const dummyMessage = new Uint8Array(32)
+    await crypto.subtle.sign('Ed25519', privateKey, dummyMessage)
+
+    // Better approach: use the scalar as seed for key generation
+    return scalarBytes // Placeholder - in production use proper Ed25519 library
+}
