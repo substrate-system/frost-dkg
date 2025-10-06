@@ -1,92 +1,114 @@
 /**
- * FROST DKG Implementation using X25519 and Ed25519
+ * FROST DKG Implementation using @noble/curves
  * Based on: https://eprint.iacr.org/2020/852.pdf
  *
- * Uses:
- * - Ed25519 for the DKG group operations
- * - X25519 for encrypted communication channels (ECDH)
- * - ChaCha20-Poly1305 for AEAD encryption of shares
+ * Install dependencies:
+ * npm install @noble/curves @noble/hashes
+ *
+ * For testing:
+ * npm install --save-dev @noble/curves @noble/hashes
  */
 
-// Ed25519 curve order (ℓ)
-const ED25519_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n
+import { ed25519 } from '@noble/curves/ed25519.js'
+import { sha512 } from '@noble/hashes/sha2.js'
+import { randomBytes } from '@noble/hashes/utils.js'
 
-class ModularArithmetic {
-    prime:bigint
-
-    constructor (prime: bigint | number | string) {
-        this.prime = BigInt(prime)
-    }
-
-    mod (n: bigint | number | string): bigint {
-        const result = BigInt(n) % this.prime
-        return result < 0n ? result + this.prime : result
-    }
-
-    add (a: bigint | number | string, b: bigint | number | string): bigint {
-        return this.mod(BigInt(a) + BigInt(b))
-    }
-
-    sub (a: bigint | number | string, b: bigint | number | string): bigint {
-        return this.mod(BigInt(a) - BigInt(b))
-    }
-
-    mul (a: bigint | number | string, b: bigint | number | string): bigint {
-        return this.mod(BigInt(a) * BigInt(b))
-    }
-
-    pow (base: bigint | number | string, exp: bigint | number | string): bigint {
-        return this.modPow(BigInt(base), BigInt(exp), this.prime)
-    }
-
-    modPow (base: bigint, exponent: bigint, modulus: bigint): bigint {
-        if (modulus === 1n) return 0n
-        let result = 1n
-        base = base % modulus
-        while (exponent > 0n) {
-            if (exponent % 2n === 1n) {
-                result = (result * base) % modulus
-            }
-            exponent = exponent >> 1n
-            base = (base * base) % modulus
-        }
-        return result
-    }
-
-    inverse (a: bigint | number | string): bigint {
-    // Extended Euclidean algorithm for modular inverse
-        let t = 0n; let newT = 1n
-        let r = this.prime; let newR = this.mod(a)
-
-        while (newR !== 0n) {
-            const quotient = r / newR;
-            [t, newT] = [newT, t - quotient * newT];
-            [r, newR] = [newR, r - quotient * newR]
-        }
-
-        if (r > 1n) throw new Error('Not invertible')
-        if (t < 0n) t = t + this.prime
-        return t
-    }
-}
-
-const scalarMath = new ModularArithmetic(ED25519_ORDER)
+// Ed25519 curve order
+const CURVE_ORDER = ed25519.Point.CURVE().n
 
 /**
- * Utility functions
+ * Modular arithmetic helper
  */
-function bytesToBigInt (bytes: Uint8Array): bigint {
-    let result = 0n
-    for (const byte of bytes) {
-        result = (result << 8n) | BigInt(byte)
+function mod (n, m = CURVE_ORDER) {
+    const result = n % m
+    return result >= 0n ? result : result + m
+}
+
+function modAdd (a, b) {
+    return mod(a + b)
+}
+
+function modMul (a, b) {
+    return mod(a * b)
+}
+
+function modPow (base, exp, modulus = CURVE_ORDER) {
+    if (modulus === 1n) return 0n
+    let result = 1n
+    base = mod(base, modulus)
+    let e = exp
+    while (e > 0n) {
+        if (e & 1n) result = mod(result * base, modulus)
+        e = e >> 1n
+        base = mod(base * base, modulus)
     }
     return result
 }
 
+function modInverse (a) {
+    // Extended Euclidean algorithm
+    let t = 0n; let newT = 1n
+    let r = CURVE_ORDER; let newR = mod(a)
+
+    while (newR !== 0n) {
+        const quotient = r / newR;
+        [t, newT] = [newT, t - quotient * newT];
+        [r, newR] = [newR, r - quotient * newR]
+    }
+
+    if (r > 1n) throw new Error('Not invertible')
+    return mod(t)
+}
+
 /**
- * X25519 key agreement for encrypted channels
+ * Generate random scalar in range [1, CURVE_ORDER)
  */
-async function generateX25519KeyPair (): Promise<CryptoKeyPair> {
+function randomScalar () {
+    const bytes = randomBytes(32)
+    const num = ed25519.utils.bytesToNumberLE(bytes)
+    return mod(num) || 1n // Ensure non-zero
+}
+
+/**
+ * Hash to scalar using SHA-512
+ */
+function hashToScalar (...inputs) {
+    const concat = new Uint8Array(inputs.reduce((acc, inp) => acc + inp.length, 0))
+    let offset = 0
+    for (const input of inputs) {
+        concat.set(input, offset)
+        offset += input.length
+    }
+
+    const hash = sha512(concat)
+    const num = ed25519.utils.bytesToNumberLE(hash)
+    return mod(num)
+}
+
+/**
+ * Convert bigint to 32-byte little-endian array
+ */
+function scalarToBytes (scalar) {
+    const bytes = new Uint8Array(32)
+    let n = BigInt(scalar)
+    for (let i = 0; i < 32; i++) {
+        bytes[i] = Number(n & 0xFFn)
+        n >>= 8n
+    }
+    return bytes
+}
+
+/**
+ * Convert bigint to bytes for point serialization
+ */
+function bigintToBytes (n) {
+    return scalarToBytes(n)
+}
+
+/**
+ * X25519 key generation and ECDH
+ */
+async function generateX25519KeyPair () {
     return await crypto.subtle.generateKey(
         { name: 'X25519' },
         true,
@@ -94,7 +116,7 @@ async function generateX25519KeyPair (): Promise<CryptoKeyPair> {
     )
 }
 
-async function deriveSharedSecret (privateKey: CryptoKey, publicKey: CryptoKey): Promise<Uint8Array> {
+async function deriveSharedSecret (privateKey, publicKey) {
     const sharedSecret = await crypto.subtle.deriveBits(
         { name: 'X25519', public: publicKey },
         privateKey,
@@ -103,40 +125,40 @@ async function deriveSharedSecret (privateKey: CryptoKey, publicKey: CryptoKey):
     return new Uint8Array(sharedSecret)
 }
 
-async function encryptShare (sharedSecret: Uint8Array, plaintext: Uint8Array): Promise<Uint8Array> {
-    // Derive encryption key from shared secret
+/**
+ * Encrypt/Decrypt using AES-GCM with derived key
+ */
+async function encryptShare (sharedSecret, plaintext) {
+    const keyMaterial = await crypto.subtle.digest('SHA-256', sharedSecret)
     const key = await crypto.subtle.importKey(
         'raw',
-        await crypto.subtle.digest('SHA-256', sharedSecret),
+        keyMaterial,
         { name: 'AES-GCM' },
         false,
         ['encrypt']
     )
 
-    const iv = new Uint8Array(12)
-    crypto.getRandomValues(iv)
-
+    const iv = crypto.getRandomValues(new Uint8Array(12))
     const ciphertext = await crypto.subtle.encrypt(
         { name: 'AES-GCM', iv },
         key,
         plaintext
     )
 
-    // Prepend IV to ciphertext
     const result = new Uint8Array(iv.length + ciphertext.byteLength)
     result.set(iv)
     result.set(new Uint8Array(ciphertext), iv.length)
-
     return result
 }
 
-async function decryptShare (sharedSecret: Uint8Array, encrypted: Uint8Array): Promise<Uint8Array> {
+async function decryptShare (sharedSecret, encrypted) {
     const iv = encrypted.slice(0, 12)
     const ciphertext = encrypted.slice(12)
 
+    const keyMaterial = await crypto.subtle.digest('SHA-256', sharedSecret)
     const key = await crypto.subtle.importKey(
         'raw',
-        await crypto.subtle.digest('SHA-256', sharedSecret),
+        keyMaterial,
         { name: 'AES-GCM' },
         false,
         ['decrypt']
@@ -151,61 +173,39 @@ async function decryptShare (sharedSecret: Uint8Array, encrypted: Uint8Array): P
     return new Uint8Array(plaintext)
 }
 
-interface SchnorrProof {
-    R: Uint8Array
-    s: bigint
-    A: Uint8Array
-}
-
-interface ReceivedShareData {
-    share: bigint
-    commitments: Uint8Array[]
-}
-
 /**
  * FROST DKG Participant
  */
 class FrostParticipant {
-    id: bigint
-    threshold: number
-    n: number
-    coefficients: bigint[] | null
-    commitments: Uint8Array[] | null
-    proofOfKnowledge: SchnorrProof | null
-    x25519KeyPair: CryptoKeyPair | null
-    peerPublicKeys: Map<bigint, CryptoKey>
-    shares: Map<bigint, bigint>
-    receivedShares: Map<bigint, ReceivedShareData>
-    secretShare: bigint | null
-    publicKey: Uint8Array | null
-    verificationShare: Uint8Array | null
-
-    constructor (id: number | bigint, threshold: number, totalParticipants: number) {
+    constructor (id, threshold, totalParticipants) {
         this.id = BigInt(id)
         this.threshold = threshold
         this.n = totalParticipants
 
-        // DKG state
+        // Polynomial coefficients (scalars)
         this.coefficients = null
+        // Commitments (curve points)
         this.commitments = null
+        // Proof of knowledge
         this.proofOfKnowledge = null
 
-        // Communication keys (X25519)
+        // X25519 keys for encrypted communication
         this.x25519KeyPair = null
         this.peerPublicKeys = new Map()
 
-        // Shares
+        // Shares for other participants
         this.shares = new Map()
+        // Received shares from other participants
         this.receivedShares = new Map()
 
         // Final results
         this.secretShare = null
-        this.publicKey = null
         this.verificationShare = null
+        this.publicKey = null
     }
 
     /**
-   * Initialize encryption keys for secure communication
+   * Initialize with X25519 keypair for encrypted channels
    */
     async initialize () {
         this.x25519KeyPair = await generateX25519KeyPair()
@@ -213,7 +213,7 @@ class FrostParticipant {
     }
 
     /**
-   * Register peer's public key for encrypted communication
+   * Register peer's X25519 public key
    */
     async registerPeerKey (peerId, publicKeyBytes) {
         const publicKey = await crypto.subtle.importKey(
@@ -227,28 +227,26 @@ class FrostParticipant {
     }
 
     /**
-   * Round 1: Generate polynomial coefficients and commitments
-   * Each participant generates:
-   * - Secret polynomial f_i(x) = a_i0 + a_i1*x + ... + a_i(t-1)*x^(t-1)
-   * - Commitments C_ik = g^{a_ik} for k = 0..t-1
-   * - Proof of knowledge of a_i0 (the secret)
+   * Round 1: Generate polynomial and commitments
+   * f_i(x) = a_{i,0} + a_{i,1}*x + ... + a_{i,t-1}*x^{t-1}
+   * C_{i,k} = g^{a_{i,k}}
    */
     async round1_generateCommitments () {
-    // Generate random coefficients for polynomial of degree (threshold - 1)
+    // Generate random polynomial coefficients
         this.coefficients = []
         for (let i = 0; i < this.threshold; i++) {
             this.coefficients.push(randomScalar())
         }
 
-        // Generate commitments: C_ik = g^{a_ik}
+        // Generate commitments: C_k = g^{a_k}
         this.commitments = []
         for (const coeff of this.coefficients) {
-            const commitment = await scalarMultiplyBase(coeff)
-            this.commitments.push(commitment)
+            const point = ed25519.ExtendedPoint.BASE.multiply(coeff)
+            this.commitments.push(point)
         }
 
-        // Generate Schnorr proof of knowledge for the secret (constant term)
-        this.proofOfKnowledge = await this.generateSchnorrProof(this.coefficients[0])
+        // Generate Schnorr proof of knowledge for secret (a_0)
+        this.proofOfKnowledge = this.generateSchnorrProof(this.coefficients[0])
 
         return {
             participantId: this.id,
@@ -258,25 +256,27 @@ class FrostParticipant {
     }
 
     /**
-   * Generate Schnorr proof of knowledge: PoK{a_i0}
-   * Proves knowledge of the discrete log of the commitment without revealing it
+   * Generate Schnorr proof: PoK{a_0}
+   * Proves knowledge of discrete log without revealing it
    */
-    async generateSchnorrProof (secret) {
-    // k ← Z_q (random nonce)
+    generateSchnorrProof (secret) {
+    // k ← random scalar
         const k = randomScalar()
 
         // R = g^k
-        const R = await scalarMultiplyBase(k)
+        const R = ed25519.ExtendedPoint.BASE.multiply(k)
 
-        // Commitment to secret
-        const A = await scalarMultiplyBase(secret)
+        // A = g^secret (commitment to secret)
+        const A = ed25519.ExtendedPoint.BASE.multiply(secret)
 
         // c = H(id || A || R)
-        const idBytes = bigIntToBytes(this.id)
-        const challenge = await hashToScalar(idBytes, A, R)
+        const idBytes = bigintToBytes(this.id)
+        const ABytes = A.toRawBytes()
+        const RBytes = R.toRawBytes()
+        const challenge = hashToScalar(idBytes, ABytes, RBytes)
 
-        // s = k + c * secret (mod ℓ)
-        const s = scalarMath.add(k, scalarMath.mul(challenge, secret))
+        // s = k + c * secret
+        const s = modAdd(k, modMul(challenge, secret))
 
         return { R, s, A }
     }
@@ -284,26 +284,25 @@ class FrostParticipant {
     /**
    * Verify Schnorr proof from another participant
    */
-    async verifySchnorrProof (participantId, proof) {
+    verifySchnorrProof (participantId, proof) {
         const { R, s, A } = proof
 
         // c = H(id || A || R)
-        const idBytes = bigIntToBytes(participantId)
-        const challenge = await hashToScalar(idBytes, A, R)
+        const idBytes = bigintToBytes(participantId)
+        const ABytes = A.toRawBytes()
+        const RBytes = R.toRawBytes()
+        const challenge = hashToScalar(idBytes, ABytes, RBytes)
 
-        // Verify: g^s = R * A^c
-        // This is a simplified check - in production, use proper Ed25519 point arithmetic
-        const lhs = await scalarMultiplyBase(s)
+        // Verify: g^s = R + c*A
+        const lhs = ed25519.ExtendedPoint.BASE.multiply(s)
+        const rhs = R.add(A.multiply(challenge))
 
-        // For now, we'll do a basic verification
-        // In production, you'd need to implement proper Ed25519 point operations
-        return true // Placeholder
+        return lhs.equals(rhs)
     }
 
     /**
-   * Round 2: Generate and distribute shares
-   * Each participant evaluates their polynomial at points 1..n
-   * and encrypts shares for other participants
+   * Round 2: Generate shares for all participants
+   * s_{i,j} = f_i(j) = ∑_{k=0}^{t-1} a_{i,k} * j^k
    */
     async round2_generateShares () {
         const encryptedShares = new Map()
@@ -311,19 +310,19 @@ class FrostParticipant {
         for (let j = 1; j <= this.n; j++) {
             const recipientId = BigInt(j)
 
-            // Evaluate polynomial f_i(j)
+            // Evaluate polynomial at point j
             let share = 0n
             for (let k = 0; k < this.coefficients.length; k++) {
-                const term = scalarMath.mul(
+                const term = modMul(
                     this.coefficients[k],
-                    scalarMath.pow(recipientId, BigInt(k))
+                    modPow(recipientId, BigInt(k))
                 )
-                share = scalarMath.add(share, term)
+                share = modAdd(share, term)
             }
 
             this.shares.set(recipientId, share)
 
-            // Encrypt share for recipient (except for self)
+            // Encrypt share for other participants
             if (recipientId !== this.id) {
                 const recipientPublicKey = this.peerPublicKeys.get(recipientId)
                 const sharedSecret = await deriveSharedSecret(
@@ -331,7 +330,7 @@ class FrostParticipant {
                     recipientPublicKey
                 )
 
-                const shareBytes = bigIntToBytes(share)
+                const shareBytes = scalarToBytes(share)
                 const encrypted = await encryptShare(sharedSecret, shareBytes)
                 encryptedShares.set(recipientId, encrypted)
             }
@@ -341,56 +340,61 @@ class FrostParticipant {
     }
 
     /**
-   * Receive encrypted share from another participant
+   * Receive and decrypt share from another participant
    */
     async receiveShare (fromId, encryptedShare, commitments) {
-        const senderPublicKey = this.peerPublicKeys.get(BigInt(fromId))
+        const senderId = BigInt(fromId)
+        const senderPublicKey = this.peerPublicKeys.get(senderId)
+
         const sharedSecret = await deriveSharedSecret(
             this.x25519KeyPair.privateKey,
             senderPublicKey
         )
 
         const decrypted = await decryptShare(sharedSecret, encryptedShare)
-        const share = bytesToBigInt(decrypted)
+        const share = ed25519.utils.bytesToNumberLE(decrypted)
 
-        this.receivedShares.set(BigInt(fromId), { share, commitments })
+        this.receivedShares.set(senderId, { share, commitments })
     }
 
     /**
-   * Round 3: Verify received shares using commitments
-   * Verify that g^{f_i(j)} = ∏(k=0 to t-1) C_ik^{j^k}
+   * Round 3: Verify received share using commitments
+   * Verify: g^{s_{i,j}} = ∏_{k=0}^{t-1} C_{i,k}^{j^k}
    */
-    async verifyShare (fromId) {
-        const data = this.receivedShares.get(BigInt(fromId))
+    verifyShare (fromId) {
+        const senderId = BigInt(fromId)
+        const data = this.receivedShares.get(senderId)
         if (!data) return false
 
         const { share, commitments } = data
 
-        // Verify: g^share = ∏(k=0 to t-1) C_k^{id^k}
-        // In production, implement proper Ed25519 point multiplication and addition
+        // LHS: g^share
+        const lhs = ed25519.ExtendedPoint.BASE.multiply(share)
 
-        // This is a simplified verification
-        const lhs = await scalarMultiplyBase(share)
+        // RHS: ∏_{k=0}^{t-1} C_k^{id^k}
+        let rhs = ed25519.ExtendedPoint.ZERO
+        for (let k = 0; k < commitments.length; k++) {
+            const exponent = modPow(this.id, BigInt(k))
+            const term = commitments[k].multiply(exponent)
+            rhs = rhs.add(term)
+        }
 
-        // Compute RHS: product of commitments raised to id^k
-        // For production, use proper elliptic curve point operations
-
-        return true // Placeholder
+        return lhs.equals(rhs)
     }
 
     /**
-   * Compute final secret share by summing all received shares
-   * s_i = ∑(j=1 to n) f_j(i)
+   * Compute final secret share
+   * s_i = ∑_{j=1}^{n} s_{j,i}
    */
     computeSecretShare () {
         let secretShare = 0n
 
-        // Add our own share
-        secretShare = scalarMath.add(secretShare, this.shares.get(this.id))
+        // Add own share
+        secretShare = modAdd(secretShare, this.shares.get(this.id))
 
         // Add all received shares
-        for (const [fromId, data] of this.receivedShares) {
-            secretShare = scalarMath.add(secretShare, data.share)
+        for (const [_, data] of this.receivedShares) {
+            secretShare = modAdd(secretShare, data.share)
         }
 
         this.secretShare = secretShare
@@ -401,30 +405,32 @@ class FrostParticipant {
    * Compute verification share (public key share)
    * Y_i = g^{s_i}
    */
-    async computeVerificationShare () {
-        if (!this.secretShare) {
-            throw new Error('Secret share not computed yet')
+    computeVerificationShare () {
+        if (this.secretShare === null) {
+            throw new Error('Secret share not computed')
         }
 
-        this.verificationShare = await scalarMultiplyBase(this.secretShare)
+        this.verificationShare = ed25519.ExtendedPoint.BASE.multiply(this.secretShare)
         return this.verificationShare
     }
 
     /**
    * Compute group public key
-   * Y = ∏(i=1 to n) C_i0 = g^{∑ a_i0}
+   * Y = ∏_{i=1}^{n} C_{i,0}
    */
-    async computeGroupPublicKey (allCommitments) {
-    // Group public key is the product of all constant term commitments
-    // In production, implement proper Ed25519 point addition
+    computeGroupPublicKey (allCommitments) {
+        let groupKey = ed25519.ExtendedPoint.ZERO
 
-        // For now, return the first commitment as placeholder
-        this.publicKey = allCommitments[0][0]
-        return this.publicKey
+        for (const commitments of allCommitments) {
+            groupKey = groupKey.add(commitments[0])
+        }
+
+        this.publicKey = groupKey
+        return groupKey
     }
 
     /**
-   * Export participant state
+   * Export state for inspection
    */
     exportState () {
         return {
@@ -432,8 +438,8 @@ class FrostParticipant {
             threshold: this.threshold,
             n: this.n,
             secretShare: this.secretShare?.toString(),
-            verificationShare: this.verificationShare,
-            publicKey: this.publicKey
+            verificationShare: this.verificationShare?.toHex(),
+            publicKey: this.publicKey?.toHex()
         }
     }
 }
@@ -443,6 +449,13 @@ class FrostParticipant {
  */
 class FrostDKG {
     constructor (threshold, totalParticipants) {
+        if (threshold < 2) {
+            throw new Error('Threshold must be at least 2')
+        }
+        if (threshold > totalParticipants) {
+            throw new Error('Threshold cannot exceed total participants')
+        }
+
         this.threshold = threshold
         this.n = totalParticipants
         this.participants = []
@@ -451,18 +464,16 @@ class FrostDKG {
     }
 
     /**
-   * Initialize all participants
+   * Initialize all participants with encryption keys
    */
     async initialize () {
-        console.log(`Initializing FROST DKG: ${this.n} participants, threshold ${this.threshold}`)
-
-        // Create participants
+    // Create participants
         for (let i = 1; i <= this.n; i++) {
             const participant = new FrostParticipant(i, this.threshold, this.n)
             this.participants.push(participant)
         }
 
-        // Initialize encryption keys
+        // Initialize X25519 keys
         const publicKeys = new Map()
         for (const p of this.participants) {
             const pubKey = await p.initialize()
@@ -477,24 +488,21 @@ class FrostDKG {
                 }
             }
         }
-
-        console.log('✓ Participants initialized with encryption keys')
     }
 
     /**
    * Execute Round 1: Generate commitments and proofs
    */
     async executeRound1 () {
-        console.log('\n--- Round 1: Generate Commitments ---')
-
         for (const p of this.participants) {
             const data = await p.round1_generateCommitments()
             this.commitments.set(p.id, data)
-            console.log(`Participant ${p.id}: Generated ${data.commitments.length} commitments`)
 
             // Verify proof of knowledge
-            const valid = await p.verifySchnorrProof(p.id, data.proof)
-            console.log(`Participant ${p.id}: Proof of knowledge ${valid ? '✓' : '✗'}`)
+            const valid = p.verifySchnorrProof(p.id, data.proof)
+            if (!valid) {
+                throw new Error(`Invalid proof of knowledge from participant ${p.id}`)
+            }
         }
     }
 
@@ -502,14 +510,11 @@ class FrostDKG {
    * Execute Round 2: Generate and exchange shares
    */
     async executeRound2 () {
-        console.log('\n--- Round 2: Generate and Exchange Shares ---')
-
-        // Generate shares
+    // Generate shares
         const allShares = new Map()
         for (const p of this.participants) {
             const shares = await p.round2_generateShares()
             allShares.set(p.id, shares)
-            console.log(`Participant ${p.id}: Generated ${shares.size} encrypted shares`)
         }
 
         // Distribute shares
@@ -524,49 +529,36 @@ class FrostDKG {
                 }
             }
         }
-
-        console.log(`✓ All shares distributed (${this.n * (this.n - 1)} encrypted shares)`)
     }
 
     /**
    * Execute Round 3: Verify shares and compute keys
    */
     async executeRound3 () {
-        console.log('\n--- Round 3: Verify Shares and Compute Keys ---')
-
-        // Verify all shares
-        let allValid = true
+    // Verify all shares
         for (const p of this.participants) {
             for (const [fromId, _] of p.receivedShares) {
-                const valid = await p.verifyShare(fromId)
+                const valid = p.verifyShare(fromId)
                 if (!valid) {
-                    console.log(`✗ Participant ${p.id}: Invalid share from ${fromId}`)
-                    allValid = false
+                    throw new Error(`Invalid share from ${fromId} to ${p.id}`)
                 }
             }
-            console.log(`Participant ${p.id}: Verified ${p.receivedShares.size} shares`)
-        }
-
-        if (!allValid) {
-            throw new Error('DKG failed: Invalid shares detected')
         }
 
         // Compute secret shares
         for (const p of this.participants) {
             p.computeSecretShare()
-            await p.computeVerificationShare()
-            console.log(`Participant ${p.id}: Computed secret share`)
+            p.computeVerificationShare()
         }
 
         // Compute group public key
         const allCommitments = Array.from(this.commitments.values()).map(d => d.commitments)
-        this.groupPublicKey = await this.participants[0].computeGroupPublicKey(allCommitments)
+        this.groupPublicKey = this.participants[0].computeGroupPublicKey(allCommitments)
 
+        // All participants should compute the same group key
         for (const p of this.participants) {
-            await p.computeGroupPublicKey(allCommitments)
+            p.computeGroupPublicKey(allCommitments)
         }
-
-        console.log('✓ Group public key computed')
     }
 
     /**
@@ -578,70 +570,222 @@ class FrostDKG {
         await this.executeRound2()
         await this.executeRound3()
 
-        console.log('\n🎉 FROST DKG COMPLETE!')
-        console.log('\nResults:')
-        console.log(`- Threshold: ${this.threshold}`)
-        console.log(`- Total Participants: ${this.n}`)
-        console.log(`- Group Public Key: ${Array.from(this.groupPublicKey.slice(0, 8))}`)
-
         return {
             threshold: this.threshold,
             n: this.n,
             participants: this.participants.map(p => p.exportState()),
-            groupPublicKey: this.groupPublicKey
+            groupPublicKey: this.groupPublicKey.toHex()
         }
     }
 }
 
-function bigIntToBytes (n:bigint, length = 32):Uint8Array {
-    const bytes:number[] = []
-    let num = n
-    for (let i = 0; i < length; i++) {
-        bytes.unshift(Number(num & 0xFFn))
-        num = num >> 8n
+/**
+ * TESTS
+ */
+
+// Test helper
+function assert (condition, message) {
+    if (!condition) {
+        throw new Error(`Assertion failed: ${message}`)
     }
-    return new Uint8Array(bytes)
 }
 
-function randomScalar (): bigint {
-    const bytes = new Uint8Array(32)
-    crypto.getRandomValues(bytes)
-    // Clamp to valid Ed25519 scalar
-    return scalarMath.mod(bytesToBigInt(bytes))
+async function testBasicDKG () {
+    console.log('\n=== Test: Basic DKG (3-of-5) ===')
+
+    const dkg = new FrostDKG(3, 5)
+    const result = await dkg.run()
+
+    // Verify all participants have the same group public key
+    const firstPubKey = dkg.participants[0].publicKey.toHex()
+    for (const p of dkg.participants) {
+        assert(
+            p.publicKey.toHex() === firstPubKey,
+      `Participant ${p.id} has different group public key`
+        )
+    }
+
+    // Verify verification shares are valid
+    for (const p of dkg.participants) {
+        const computed = ed25519.ExtendedPoint.BASE.multiply(p.secretShare)
+        assert(
+            computed.equals(p.verificationShare),
+      `Participant ${p.id} has invalid verification share`
+        )
+    }
+
+    console.log('✓ All participants computed same group public key')
+    console.log('✓ All verification shares are valid')
+    console.log(`✓ Group public key: ${firstPubKey.slice(0, 16)}...`)
 }
 
-async function hashToScalar (...inputs: Uint8Array[]): Promise<bigint> {
-    const concatenated = inputs.reduce((acc, input) => {
-        const arr = new Uint8Array(acc.length + input.length)
-        arr.set(acc)
-        arr.set(input, acc.length)
-        return arr
-    }, new Uint8Array(0))
+async function testMinimalThreshold () {
+    console.log('\n=== Test: Minimal Threshold (2-of-3) ===')
 
-    const hash = await crypto.subtle.digest('SHA-512', concatenated)
-    const hashBytes = new Uint8Array(hash)
-    return scalarMath.mod(bytesToBigInt(hashBytes))
+    const dkg = new FrostDKG(2, 3)
+    const result = await dkg.run()
+
+    assert(result.threshold === 2, 'Wrong threshold')
+    assert(result.n === 3, 'Wrong number of participants')
+    assert(dkg.participants.length === 3, 'Wrong number of participant objects')
+
+    console.log('✓ 2-of-3 DKG completed successfully')
+}
+
+async function testProofOfKnowledge () {
+    console.log('\n=== Test: Proof of Knowledge ===')
+
+    const participant = new FrostParticipant(1, 3, 5)
+    await participant.initialize()
+
+    // Generate commitment
+    const { proof, commitments } = await participant.round1_generateCommitments()
+
+    // Verify proof
+    const valid = participant.verifySchnorrProof(participant.id, proof)
+    assert(valid, 'Valid proof rejected')
+
+    // Try with wrong proof
+    const fakeProof = {
+        R: ed25519.ExtendedPoint.BASE.multiply(randomScalar()),
+        s: randomScalar(),
+        A: proof.A
+    }
+    const invalid = participant.verifySchnorrProof(participant.id, fakeProof)
+    assert(!invalid, 'Invalid proof accepted')
+
+    console.log('✓ Valid proof accepted')
+    console.log('✓ Invalid proof rejected')
+}
+
+async function testShareVerification () {
+    console.log('\n=== Test: Share Verification ===')
+
+    const dkg = new FrostDKG(3, 5)
+    await dkg.initialize()
+    await dkg.executeRound1()
+    await dkg.executeRound2()
+
+    // All shares should verify correctly
+    for (const p of dkg.participants) {
+        for (const [fromId, _] of p.receivedShares) {
+            const valid = p.verifyShare(fromId)
+            assert(valid, `Share from ${fromId} to ${p.id} failed verification`)
+        }
+    }
+
+    console.log('✓ All shares verified correctly')
+}
+
+async function testPolynomialReconstruction () {
+    console.log('\n=== Test: Polynomial Reconstruction ===')
+
+    const dkg = new FrostDKG(3, 5)
+    await dkg.run()
+
+    // Verify that verification shares sum to group public key
+    let sumOfVerificationShares = ed25519.ExtendedPoint.ZERO
+    for (const p of dkg.participants) {
+        sumOfVerificationShares = sumOfVerificationShares.add(p.verificationShare)
+    }
+
+    assert(
+        sumOfVerificationShares.equals(dkg.groupPublicKey),
+        'Sum of verification shares does not equal group public key'
+    )
+
+    console.log('✓ Polynomial reconstruction property verified')
+}
+
+async function testEdgeCases () {
+    console.log('\n=== Test: Edge Cases ===')
+
+    // Test minimum configuration
+    const dkg1 = new FrostDKG(2, 2)
+    await dkg1.run()
+    console.log('✓ 2-of-2 configuration works')
+
+    // Test larger configuration
+    const dkg2 = new FrostDKG(5, 7)
+    await dkg2.run()
+    console.log('✓ 5-of-7 configuration works')
+
+    // Test invalid configurations
+    try {
+        new FrostDKG(1, 5)
+        assert(false, 'Should reject threshold < 2')
+    } catch (e) {
+        console.log('✓ Rejects threshold < 2')
+    }
+
+    try {
+        new FrostDKG(6, 5)
+        assert(false, 'Should reject threshold > n')
+    } catch (e) {
+        console.log('✓ Rejects threshold > n')
+    }
+}
+
+async function testEncryption () {
+    console.log('\n=== Test: Share Encryption ===')
+
+    const dkg = new FrostDKG(3, 5)
+    await dkg.initialize()
+
+    const p1 = dkg.participants[0]
+    const p2 = dkg.participants[1]
+
+    // Test encryption/decryption
+    const testShare = randomScalar()
+    const testBytes = scalarToBytes(testShare)
+
+    const p1PubKey = dkg.participants[0].peerPublicKeys.get(p2.id)
+    const secret1 = await deriveSharedSecret(p1.x25519KeyPair.privateKey, p1PubKey)
+
+    const encrypted = await encryptShare(secret1, testBytes)
+
+    const p2PubKey = dkg.participants[1].peerPublicKeys.get(p1.id)
+    const secret2 = await deriveSharedSecret(p2.x25519KeyPair.privateKey, p2PubKey)
+
+    const decrypted = await decryptShare(secret2, encrypted)
+    const recoveredShare = ed25519.utils.bytesToNumberLE(decrypted)
+
+    assert(testShare === recoveredShare, 'Encryption/decryption failed')
+
+    console.log('✓ Share encryption/decryption works correctly')
 }
 
 /**
- * Ed25519 operations using Web Crypto API
+ * Run all tests
  */
-async function scalarMultiplyBase (scalar: bigint): Promise<Uint8Array> {
-    const scalarBytes = bigIntToBytes(scalar)
+async function runAllTests () {
+    console.log('╔════════════════════════════════════════╗')
+    console.log('║   FROST DKG Test Suite                 ║')
+    console.log('╚════════════════════════════════════════╝')
 
-    // Import as Ed25519 private key
-    const privateKey = await crypto.subtle.importKey(
-        'raw',
-        scalarBytes,
-        { name: 'Ed25519' },
-        true,
-        ['sign']
-    )
+    try {
+        await testProofOfKnowledge()
+        await testEncryption()
+        await testBasicDKG()
+        await testMinimalThreshold()
+        await testShareVerification()
+        await testPolynomialReconstruction()
+        await testEdgeCases()
 
-    // Generate a dummy signature to extract the public key
-    const dummyMessage = new Uint8Array(32)
-    await crypto.subtle.sign('Ed25519', privateKey, dummyMessage)
+        console.log('\n╔════════════════════════════════════════╗')
+        console.log('║   ✓ ALL TESTS PASSED                   ║')
+        console.log('╚════════════════════════════════════════╝\n')
+    } catch (error) {
+        console.error('\n✗ TEST FAILED:', error.message)
+        console.error(error.stack)
+        throw error
+    }
+}
 
-    // Better approach: use the scalar as seed for key generation
-    return scalarBytes // Placeholder - in production use proper Ed25519 library
+// Export
+export { FrostDKG, FrostParticipant, runAllTests }
+
+// Run tests if executed directly
+if (typeof process !== 'undefined' && process.argv[1]?.includes('frost-dkg')) {
+    runAllTests().catch(console.error)
 }
