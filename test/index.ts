@@ -1,15 +1,14 @@
 import { test } from '@substrate-system/tapzero'
 import { bytesToNumberLE } from '@noble/curves/utils.js'
 import {
-    FrostDKG,
-    FrostParticipant,
-    ed25519,
     randomScalar,
     scalarToBytes,
     deriveSharedSecret,
     encryptShare,
     decryptShare
-} from '../src/index.js'
+} from '../src/util.js'
+import { FrostParticipant } from '../src/participant.js'
+import { FrostDKG, ed25519, } from '../src/index.js'
 
 test('proof of knowledge', async t => {
     const participant = new FrostParticipant(1, 3, 5)
@@ -24,7 +23,7 @@ test('proof of knowledge', async t => {
 
     // Try with wrong proof
     const fakeProof = {
-        R: ed25519.Point.BASE.multiply(randomScalar() as any),
+        R: ed25519.Point.BASE.multiply(randomScalar()),
         s: randomScalar(),
         A: proof.A
     }
