@@ -43,12 +43,18 @@ test('share encryption', async t => {
     const testBytes = scalarToBytes(testShare)
 
     const p1PubKey = dkg.participants[0].peerPublicKeys.get(p2.id)
-    const secret1 = await deriveSharedSecret(p1.x25519KeyPair.privateKey, p1PubKey)
+    const secret1 = await deriveSharedSecret(
+        p1.x25519KeyPair!.privateKey,
+        p1PubKey
+    )
 
     const encrypted = await encryptShare(secret1, testBytes)
 
     const p2PubKey = dkg.participants[1].peerPublicKeys.get(p1.id)
-    const secret2 = await deriveSharedSecret(p2.x25519KeyPair.privateKey, p2PubKey)
+    const secret2 = await deriveSharedSecret(
+        p2.x25519KeyPair!.privateKey,
+        p2PubKey
+    )
 
     const decrypted = await decryptShare(secret2, encrypted)
     const recoveredShare = bytesToNumberLE(decrypted)

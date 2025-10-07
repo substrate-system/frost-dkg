@@ -33,7 +33,7 @@ export class FrostParticipant {
     coefficients:bigint[]|null
     commitments:any[]|null
     proofOfKnowledge:any
-    x25519KeyPair:any
+    x25519KeyPair:CryptoKeyPair|null
     peerPublicKeys:Map<bigint, any>
     shares:Map<bigint, bigint>
     receivedShares:Map<bigint, any>
@@ -70,9 +70,11 @@ export class FrostParticipant {
 
     /**
      * Initialize with X25519 keypair for encrypted channels
+     * @returns {Promise<ArrayBuffer>} The public key
      */
-    async initialize () {
+    async initialize ():Promise<ArrayBuffer> {
         this.x25519KeyPair = await generateX25519KeyPair()
+
         return await crypto.subtle.exportKey(
             'raw',
             this.x25519KeyPair.publicKey
@@ -82,7 +84,7 @@ export class FrostParticipant {
     /**
      * Register peer's X25519 public key
      */
-    async registerPeerKey (peerId, publicKeyBytes) {
+    async registerPeerKey (peerId:number, publicKeyBytes:ArrayBuffer) {
         const publicKey = await crypto.subtle.importKey(
             'raw',
             publicKeyBytes,
@@ -90,6 +92,7 @@ export class FrostParticipant {
             true,
             []
         )
+
         this.peerPublicKeys.set(BigInt(peerId), publicKey)
     }
 
@@ -221,7 +224,7 @@ export class FrostParticipant {
         const senderPublicKey = this.peerPublicKeys.get(senderId)
 
         const sharedSecret = await deriveSharedSecret(
-            this.x25519KeyPair.privateKey,
+            this.x25519KeyPair!.privateKey,
             senderPublicKey
         )
 

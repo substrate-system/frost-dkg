@@ -59,7 +59,10 @@ export function scalarToBytes (scalar) {
     return bytes
 }
 
-export async function deriveSharedSecret (privateKey, publicKey) {
+export async function deriveSharedSecret (
+    privateKey:CryptoKey,
+    publicKey:CryptoKey
+):Promise<Uint8Array<ArrayBuffer>> {
     const sharedSecret = await crypto.subtle.deriveBits(
         { name: 'X25519', public: publicKey },
         privateKey,
@@ -145,10 +148,10 @@ export function bigintToBytes (n) {
 /**
  * X25519 key generation and ECDH
  */
-export async function generateX25519KeyPair () {
+export async function generateX25519KeyPair ():Promise<CryptoKeyPair> {
     return await crypto.subtle.generateKey(
         { name: 'X25519' },
         true,
         ['deriveBits']
-    )
+    ) as CryptoKeyPair
 }
