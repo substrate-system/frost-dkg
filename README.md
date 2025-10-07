@@ -135,40 +135,48 @@ new FrostDKG(threshold:number, totalParticipants:number)
 
 #### Methods
 
-##### `async run()`
+##### `run`
+
+```ts
+async run ():Promise<{
+    threshold:number;
+    n:number;
+    participants:ParticipantState[];
+    groupPublicKey:string;
+}>
+```
 
 Executes the complete DKG protocol and returns the result.
 
-**Returns:**
-```ts
-{
-  threshold: number
-  n: number
-  participants: Array<{
-    id: string
-    threshold: number
-    n: number
-    secretShare: string
-    verificationShare: string
-    publicKey: string
-  }>
-  groupPublicKey: string
-}
-```
+##### `initialize`
 
-##### `async initialize()`
+```ts
+async initialize ():Promise<void>
+```
 
 Initializes all participants with X25519 key pairs.
 
-##### `async executeRound1()`
+##### `executeRound1`
+
+```ts
+async executeRound1 ():Promise<void>
+```
 
 Round 1: Generates polynomial commitments and Schnorr proofs of knowledge.
 
-##### `async executeRound2()`
+##### `executeRound2`
+
+```ts
+async executeRound2 ():Promise<void>
+```
 
 Round 2: Generates and exchanges encrypted shares between participants.
 
-##### `async executeRound3()`
+##### `executeRound3`
+
+```ts
+async executeRound3 ():Promise<void>
+```
 
 Round 3: Verifies received shares and computes final secret and
 verification shares.
@@ -187,14 +195,18 @@ new FrostParticipant(id:number, threshold:number, totalParticipants:number)
 
 #### Methods
 
-##### `async initialize(): Promise<ArrayBuffer>`
+##### `initialize`
+
+```ts
+async initialize ():Promise<ArrayBuffer>
+```
 
 Initializes the participant and returns their X25519 public key.
 
-##### `async registerPeerKey(peerId: number, publicKeyBytes: ArrayBuffer): Promise<void>`
+##### `registerPeerKey`
 
 ```ts
-registerPeerKey (
+async registerPeerKey (
     peerId:number,
     publicKeyBytes:ArrayBuffer
 ):Promise<void>
@@ -205,75 +217,139 @@ Register another participant's public key for encrypted communication.
 ##### `round1_generateCommitments`
 
 ```ts
-async round1_generateCommitments ():Promise<void>
+async round1_generateCommitments ():Promise<{
+    participantId: bigint;
+    commitments: Point[];
+    proof: { R: Point; s: bigint; A: Point };
+}>
 ```
 
 Generate polynomial coefficients and commitments.
 
-**Returns:**
-```ts
-{
-  participantId: bigint
-  commitments: Point[]
-  proof: { R: Point, s: bigint, A: Point }
-}
-```
+##### `verifySchnorrProof`
 
-##### `verifySchnorrProof(participantId: bigint, proof): boolean`
+```ts
+verifySchnorrProof (participantId:bigint, proof):boolean
+```
 
 Verifies a Schnorr proof of knowledge from another participant.
 
-##### `async round2_generateShares(): Promise<Map<bigint, Uint8Array>>`
+##### `round2_generateShares`
+
+```ts
+async round2_generateShares ():Promise<Map<bigint, Uint8Array>>
+```
 
 Generates encrypted shares for all other participants.
 
-##### `async receiveShare(fromId: number, encryptedShare: Uint8Array, commitments: Point[]): Promise<void>`
+##### `receiveShare`
+
+```ts
+async receiveShare (
+    fromId:number,
+    encryptedShare:Uint8Array,
+    commitments:Point[]
+):Promise<void>
+```
 
 Receives and decrypts a share from another participant.
 
-##### `verifyShare(fromId: number): boolean`
+##### `verifyShare`
+
+```ts
+verifyShare (fromId:number):boolean
+```
 
 Verifies a received share using the sender's commitments.
 
-##### `computeSecretShare(): bigint`
+##### `computeSecretShare`
+
+```ts
+computeSecretShare ():bigint
+```
 
 Computes the final secret share.
 
-##### `computeVerificationShare(): Point`
+##### `computeVerificationShare`
+
+```ts
+computeVerificationShare ():Point
+```
 
 Computes the verification share (public key share).
 
-##### `computeGroupPublicKey(allCommitments): Point`
+##### `computeGroupPublicKey`
+
+```ts
+computeGroupPublicKey (allCommitments):Point
+```
 
 Computes the group public key from all participants' commitments.
 
-##### `exportState()`
+##### `exportState`
+
+```ts
+exportState ():ParticipantState
+```
 
 Exports the participant's state for inspection.
 
 ### Utility Functions
 
-#### `randomScalar(): bigint`
+#### `randomScalar`
+
+```ts
+randomScalar ():bigint
+```
 
 Generates a random scalar in the curve order.
 
-#### `scalarToBytes(scalar: bigint): Uint8Array`
+#### `scalarToBytes`
+
+```ts
+scalarToBytes (scalar:bigint):Uint8Array
+```
 
 Converts a scalar to a 32-byte little-endian representation.
 
-#### `deriveSharedSecret(privateKey: CryptoKey, publicKey: CryptoKey): Promise<Uint8Array>`
+#### `deriveSharedSecret`
+
+```ts
+async deriveSharedSecret (
+    privateKey:CryptoKey,
+    publicKey:CryptoKey
+):Promise<Uint8Array>
+```
 
 Derives a shared secret using X25519 key agreement.
 
-#### `encryptShare(sharedSecret: Uint8Array, plaintext: Uint8Array): Promise<Uint8Array>`
+#### `encryptShare`
+
+```ts
+async encryptShare (
+    sharedSecret:Uint8Array,
+    plaintext:Uint8Array
+):Promise<Uint8Array>
+```
 
 Encrypts data using AES-GCM with a derived key.
 
-#### `decryptShare(sharedSecret: Uint8Array, encrypted: Uint8Array): Promise<Uint8Array>`
+#### `decryptShare`
+
+```ts
+async decryptShare (
+    sharedSecret:Uint8Array,
+    encrypted:Uint8Array
+):Promise<Uint8Array>
+```
 
 Decrypts data encrypted with `encryptShare`.
 
-## Protocol Overview
+
+-------
+
+
+## How Does It Work?
 
 FROST DKG consists of three rounds:
 
@@ -297,26 +373,25 @@ FROST DKG consists of three rounds:
 3. Computes verification share (public key share)
 4. Computes group public key
 
+
+-------
+
+
 ## Security Considerations
 
 - **Secure Channels**: Shares are encrypted using X25519 key agreement + AES-GCM
-- **Commitment Verification**: Schnorr proofs ensure participants know their secrets
-- **Share Verification**: Pedersen commitments allow verification without revealing shares
-- **Threshold Security**: Any `t` participants can reconstruct the key, but `t-1` cannot
+- **Commitment Verification**: Schnorr proofs ensure participants know
+  their secrets
+- **Share Verification**: Pedersen commitments allow verification without
+  revealing shares
+- **Threshold Security**: Any `t` participants can reconstruct the key,
+  but `t-1` cannot
 
-## Testing
+## Test
 
-```bash
+```sh
 npm test
 ```
-
-The test suite uses [@substrate-system/tapzero](https://github.com/substrate-system/tapzero) and includes:
-
-- Proof of knowledge verification
-- Share encryption/decryption
-- Various threshold configurations (2-of-2, 3-of-5, 5-of-7)
-- Share verification
-- Edge case handling
 
 ## Browser Compatibility
 
@@ -330,7 +405,8 @@ This library uses the Web Crypto API and works in all modern browsers:
 
 - [FROST: Flexible Round-Optimized Schnorr Threshold Signatures](https://eprint.iacr.org/2020/852)
 - [Penumbra FROST DKG Documentation](https://protocol.penumbra.zone/main/crypto/flow-encryption/dkg.html#frost)
-- [@noble/curves](https://github.com/paulmillr/noble-curves) - Cryptographic curves implementation
+- [@noble/curves](https://github.com/paulmillr/noble-curves) - Cryptographic
+  curves implementation
 - [Pedersen's Verifiable Secret Sharing](https://link.springer.com/chapter/10.1007/3-540-46766-1_9)
 
 This implementation follows the

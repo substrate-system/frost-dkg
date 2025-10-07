@@ -13,14 +13,26 @@ import {
     bytesToNumberLE
 } from './util.js'
 import { ed25519 } from '@noble/curves/ed25519.js'
+import { type EdwardsPoint } from '@noble/curves/abstract/edwards.js'
 
 export type ParticipantState = {
     id:string;
     threshold:number;
     n:number;
     secretShare?:string;
-    verificationShare:string;
+    verificationShare?:string;
     publicKey:string
+}
+
+export type SchnorrProof = {
+    R:EdwardsPoint,
+    s:bigint,
+    A:EdwardsPoint
+}
+
+export type ReceivedShare = {
+    share:bigint;
+    commitments:EdwardsPoint[];
 }
 
 /**
@@ -31,15 +43,15 @@ export class FrostParticipant {
     threshold:number
     n:number
     coefficients:bigint[]|null
-    commitments:any[]|null
-    proofOfKnowledge:any
+    commitments:EdwardsPoint[]|null
+    proofOfKnowledge:SchnorrProof|null
     x25519KeyPair:CryptoKeyPair|null
-    peerPublicKeys:Map<bigint, any>
+    peerPublicKeys:Map<bigint, CryptoKey>
     shares:Map<bigint, bigint>
-    receivedShares:Map<bigint, any>
+    receivedShares:Map<bigint, ReceivedShare>
     secretShare:bigint|null
-    verificationShare:any
-    publicKey:any
+    verificationShare:EdwardsPoint|null
+    publicKey:EdwardsPoint|null
 
     constructor (id:number, threshold:number, totalParticipants:number) {
         this.id = BigInt(id)
@@ -55,12 +67,12 @@ export class FrostParticipant {
 
         // X25519 keys for encrypted communication
         this.x25519KeyPair = null
-        this.peerPublicKeys = new Map()
+        this.peerPublicKeys = new Map<bigint, CryptoKey>()
 
         // Shares for other participants
-        this.shares = new Map()
+        this.shares = new Map<bigint, bigint>()
         // Received shares from other participants
-        this.receivedShares = new Map()
+        this.receivedShares = new Map<bigint, ReceivedShare>()
 
         // Final results
         this.secretShare = null
@@ -104,7 +116,11 @@ export class FrostParticipant {
      * f_i(x) = a_{i,0} + a_{i,1}*x + ... + a_{i,t-1}*x^{t-1}
      * C_{i,k} = g^{a_{i,k}}
      */
-    async round1_generateCommitments ():Promise<void> {
+    async round1_generateCommitments ():Promise<{
+        participantId:bigint;
+        commitments:EdwardsPoint[];
+        proof:SchnorrProof;
+    }> {
         // Generate random polynomial coefficients
         this.coefficients = []
         for (let i = 0; i < this.threshold; i++) {
@@ -132,8 +148,7 @@ export class FrostParticipant {
      * Generate Schnorr proof: PoK{a_0}
      * Proves knowledge of discrete log without revealing it
      */
-    generateSchnorrProof (secret) {
-    // k ← random scalar
+    generateSchnorrProof (secret:bigint):SchnorrProof {
         const k = randomScalar()
 
         // R = g^k
@@ -157,7 +172,7 @@ export class FrostParticipant {
     /**
      * Verify Schnorr proof from another participant
      */
-    verifySchnorrProof (participantId, proof) {
+    verifySchnorrProof (participantId:bigint, proof:SchnorrProof) {
         const { R, s, A } = proof
 
         // c = H(id || A || R)
@@ -177,12 +192,12 @@ export class FrostParticipant {
      * Round 2: Generate shares for all participants
      * s_{i,j} = f_i(j) = ∑_{k=0}^{t-1} a_{i,k} * j^k
      */
-    async round2_generateShares () {
+    async round2_generateShares ():Promise<Map<bigint, Uint8Array<ArrayBuffer>>> {
         if (!this.coefficients) {
             throw new Error('Coefficients not initialized')
         }
 
-        const encryptedShares = new Map()
+        const encryptedShares = new Map<bigint, Uint8Array<ArrayBuffer>>()
 
         for (let j = 1; j <= this.n; j++) {
             const recipientId = BigInt(j)
@@ -222,7 +237,11 @@ export class FrostParticipant {
     /**
      * Receive and decrypt share from another participant
      */
-    async receiveShare (fromId:number|bigint, encryptedShare, commitments) {
+    async receiveShare (
+        fromId:number|bigint,
+        encryptedShare:Uint8Array,
+        commitments:EdwardsPoint[]
+    ):Promise<void> {
         const senderId = BigInt(fromId)
         const senderPublicKey = this.peerPublicKeys.get(senderId)
 
@@ -241,7 +260,7 @@ export class FrostParticipant {
      * Round 3: Verify received share using commitments
      * Verify: g^{s_{i,j}} = ∏_{k=0}^{t-1} C_{i,k}^{j^k}
      */
-    verifyShare (fromId) {
+    verifyShare (fromId:number|bigint):boolean {
         const senderId = BigInt(fromId)
         const data = this.receivedShares.get(senderId)
         if (!data) return false
@@ -266,7 +285,7 @@ export class FrostParticipant {
      * Compute final secret share
      * s_i = ∑_{j=1}^{n} s_{j,i}
      */
-    computeSecretShare () {
+    computeSecretShare ():bigint {
         let secretShare = 0n
 
         // Add own share
@@ -285,7 +304,7 @@ export class FrostParticipant {
      * Compute verification share (public key share)
      * Y_i = g^{s_i}
      */
-    computeVerificationShare () {
+    computeVerificationShare ():EdwardsPoint {
         if (this.secretShare === null) {
             throw new Error('Secret share not computed')
         }
@@ -298,7 +317,7 @@ export class FrostParticipant {
      * Compute group public key
      * Y = ∏_{i=1}^{n} C_{i,0}
      */
-    computeGroupPublicKey (allCommitments) {
+    computeGroupPublicKey (allCommitments:EdwardsPoint[][]):EdwardsPoint {
         let groupKey = ed25519.Point.ZERO
 
         for (const commitments of allCommitments) {

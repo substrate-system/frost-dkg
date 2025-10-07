@@ -1,5 +1,10 @@
 import { ed25519 } from '@noble/curves/ed25519.js'
-import { FrostParticipant, type ParticipantState } from './participant.js'
+import { type EdwardsPoint } from '@noble/curves/abstract/edwards.js'
+import {
+    FrostParticipant,
+    type ParticipantState,
+    type SchnorrProof
+} from './participant.js'
 
 /**
  * FROST DKG Implementation using @noble/curves
@@ -12,6 +17,12 @@ import { FrostParticipant, type ParticipantState } from './participant.js'
  * npm install --save-dev @noble/curves @noble/hashes
  */
 
+export type CommitmentData = {
+    participantId:bigint;
+    commitments:EdwardsPoint[];
+    proof:SchnorrProof;
+}
+
 /**
  * FROST DKG Protocol Coordinator
  */
@@ -19,10 +30,10 @@ export class FrostDKG {
     threshold:number
     n:number
     participants:FrostParticipant[]
-    commitments:Map<bigint, any>
-    groupPublicKey:any
+    commitments:Map<bigint, CommitmentData>
+    groupPublicKey:EdwardsPoint|null
 
-    constructor (threshold, totalParticipants) {
+    constructor (threshold:number, totalParticipants:number) {
         if (threshold < 2) {
             throw new Error('Threshold must be at least 2')
         }
@@ -33,7 +44,7 @@ export class FrostDKG {
         this.threshold = threshold
         this.n = totalParticipants
         this.participants = []
-        this.commitments = new Map()
+        this.commitments = new Map<bigint, CommitmentData>()
         this.groupPublicKey = null
     }
 
@@ -48,7 +59,7 @@ export class FrostDKG {
         }
 
         // Initialize X25519 keys
-        const publicKeys = new Map()
+        const publicKeys = new Map<bigint, ArrayBuffer>()
         for (const p of this.participants) {
             const pubKey = await p.initialize()
             publicKeys.set(p.id, pubKey)
@@ -68,7 +79,7 @@ export class FrostDKG {
      * Execute Round 1: Generate commitments and proofs.
      * @returns {Promise<void>}
      */
-    async executeRound1 () {
+    async executeRound1 ():Promise<void> {
         for (const p of this.participants) {
             const data = await p.round1_generateCommitments()
             this.commitments.set(p.id, data)
@@ -87,7 +98,7 @@ export class FrostDKG {
      */
     async executeRound2 ():Promise<void> {
         // Generate shares
-        const allShares = new Map()
+        const allShares = new Map<bigint, Map<bigint, Uint8Array>>()
         for (const p of this.participants) {
             const shares = await p.round2_generateShares()
             allShares.set(p.id, shares)
@@ -95,12 +106,12 @@ export class FrostDKG {
 
         // Distribute shares
         for (const sender of this.participants) {
-            const shares = allShares.get(sender.id)
-            const commitments = this.commitments.get(sender.id).commitments
+            const shares = allShares.get(sender.id)!
+            const commitments = this.commitments.get(sender.id)!.commitments
 
             for (const receiver of this.participants) {
                 if (sender.id !== receiver.id) {
-                    const encryptedShare = shares.get(receiver.id)
+                    const encryptedShare = shares.get(receiver.id)!
                     await receiver.receiveShare(sender.id, encryptedShare, commitments)
                 }
             }
