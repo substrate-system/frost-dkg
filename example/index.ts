@@ -1,11 +1,112 @@
 import { type FunctionComponent, render } from 'preact'
 import { html } from 'htm/preact'
-import { example } from '../src/index.js'
+import { State } from './state.js'
 
-example()
+const state = State()
 
-const Example:FunctionComponent<unknown> = function () {
-    return html`<div>hello</div>`
+const App: FunctionComponent = function () {
+    function truncate (str: string) {
+        if (!str) return 'N/A'
+        if (str.length <= 80) return str
+        return str.substring(0, 40) + '...' + str.substring(str.length - 40)
+    }
+
+    return html`
+        <div class="container">
+            <h1>FROST DKG Demo</h1>
+            <p class="subtitle">Flexible Round-Optimized Schnorr Threshold Distributed Key Generation</p>
+
+            <div class="protocol-steps">
+                <h3>How FROST DKG Works</h3>
+                <ol>
+                    <li><strong>Round 1:</strong> Each participant generates a polynomial and creates commitments</li>
+                    <li><strong>Round 2:</strong> Participants compute shares for each other and encrypt them</li>
+                    <li><strong>Round 3:</strong> Shares are verified and the group key is computed</li>
+                </ol>
+                <p style="margin-top: 15px; font-style: italic;">
+                    The result is a threshold scheme where any <strong>t</strong> participants can reconstruct the key, but fewer cannot.
+                </p>
+            </div>
+
+            <div class="controls">
+                <div class="input-group">
+                    <label for="threshold">Threshold (t) - minimum participants needed:</label>
+                    <input
+                        type="number"
+                        id="threshold"
+                        min="2"
+                        max="10"
+                        value=${state.threshold}
+                        onInput=${(e: any) => State.SetThreshold(state, parseInt(e.target.value))}
+                    />
+                </div>
+
+                <div class="input-group">
+                    <label for="total">Total Participants (n):</label>
+                    <input
+                        type="number"
+                        id="total"
+                        min="2"
+                        max="10"
+                        value=${state.total}
+                        onInput=${(e: any) => State.SetTotal(state, parseInt(e.target.value))}
+                    />
+                </div>
+
+                <button onClick=${() => State.RunDKG(state)} disabled=${state.loading}>
+                    ${state.loading.value
+                        ? html`Running DKG Protocol<span class="spinner"></span>`
+                        : 'Run DKG Protocol'
+                    }
+                </button>
+            </div>
+
+            ${state.error.value && html`
+                <div class="error">Error: ${state.error.value}</div>
+            `}
+
+            ${state.result.value && html`
+                <div class="results">
+                    <div class="section">
+                        <h2>Protocol Result</h2>
+                        <div class="info-box">
+                            <strong>Configuration</strong>
+                            <div style="margin-top: 8px;">
+                                Threshold: <strong>${state.result.value.threshold}</strong> of <strong>${state.result.value.n}</strong> participants
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <strong>Group Public Key</strong>
+                            <code>${state.result.value.groupPublicKey}</code>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Participants</h2>
+                        <div class="participant-grid">
+                            ${state.result.value.participants.map(p => html`
+                                <div class="participant-card">
+                                    <h3>Participant ${p.id}</h3>
+                                    <div class="field">
+                                        <div class="field-label">Secret Share</div>
+                                        <div class="field-value">${truncate(p.secretShare || '')}</div>
+                                    </div>
+                                    <div class="field">
+                                        <div class="field-label">Verification Share</div>
+                                        <div class="field-value">${truncate(p.verificationShare)}</div>
+                                    </div>
+                                    <div class="field">
+                                        <div class="field-label">Group Public Key</div>
+                                        <div class="field-value">${truncate(p.publicKey)}</div>
+                                    </div>
+                                </div>
+                            `)}
+                        </div>
+                    </div>
+                </div>
+            `}
+        </div>
+    `
 }
 
-render(html`<${Example} />`, document.getElementById('root')!)
+render(html`<${App} />`, document.getElementById('root')!)
