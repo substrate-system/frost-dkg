@@ -69,7 +69,7 @@ export class FrostDKG {
         for (const p of this.participants) {
             for (const [id, pubKey] of publicKeys) {
                 if (id !== p.id) {
-                    await p.registerPeerKey(id, pubKey)
+                    await p.registerPeerKey(Number(id), pubKey)
                 }
             }
         }
@@ -169,7 +169,7 @@ export class FrostDKG {
             threshold: this.threshold,
             n: this.n,
             participants: this.participants.map(p => p.exportState()),
-            groupPublicKey: this.groupPublicKey.toHex()
+            groupPublicKey: this.groupPublicKey!.toHex()
         }
     }
 }

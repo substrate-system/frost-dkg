@@ -27,15 +27,15 @@ export function State (): {
     return state
 }
 
-State.SetThreshold = function (state: ReturnType<typeof State>, value: number) {
+State.setThreshold = function (state: ReturnType<typeof State>, value: number) {
     state.threshold.value = value
 }
 
-State.SetTotal = function (state: ReturnType<typeof State>, value: number) {
+State.setTotal = function (state: ReturnType<typeof State>, value: number) {
     state.total.value = value
 }
 
-State.RunDKG = async function (state: ReturnType<typeof State>) {
+State.runDKG = async function (state: ReturnType<typeof State>) {
     // Validation
     if (state.threshold.value < 2) {
         state.error.value = 'Threshold must be at least 2'

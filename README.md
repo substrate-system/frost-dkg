@@ -23,28 +23,35 @@ sign messages, but fewer than `t` cannot.
 - **Zero-Knowledge Proofs**: Schnorr proofs of knowledge for
   commitment verification
 - **Ed25519 Curve**: Built on the secure Ed25519 elliptic curve
-- **Full TypeScript**: Type-safe implementation with comprehensive
-  type definitions
 
 
 <details><summary><h2>Contents</h2></summary>
 
 <!-- toc -->
 
-- [Installation](#installation)
-- [Usage](#usage)
-  * [Basic Example](#basic-example)
-  * [Advanced Usage: Manual Round Execution](#advanced-usage-manual-round-execution)
-- [API Reference](#api-reference)
+- [Install](#install)
+- [Use](#use)
+  * [Example](#example)
+  * [Advanced Example: Manual Round Execution](#advanced-example-manual-round-execution)
+- [API](#api)
   * [`FrostDKG`](#frostdkg)
+    + [Constructor](#constructor)
+    + [Methods](#methods)
   * [`FrostParticipant`](#frostparticipant)
+    + [Constructor](#constructor-1)
+    + [Methods](#methods-1)
   * [Utility Functions](#utility-functions)
-- [Protocol Overview](#protocol-overview)
+    + [`randomScalar`](#randomscalar)
+    + [`scalarToBytes`](#scalartobytes)
+    + [`deriveSharedSecret`](#derivesharedsecret)
+    + [`encryptShare`](#encryptshare)
+    + [`decryptShare`](#decryptshare)
+- [How Does It Work?](#how-does-it-work)
   * [Round 1: Commitment Phase](#round-1-commitment-phase)
   * [Round 2: Share Distribution](#round-2-share-distribution)
   * [Round 3: Verification and Key Computation](#round-3-verification-and-key-computation)
 - [Security Considerations](#security-considerations)
-- [Testing](#testing)
+- [Test](#test)
 - [Browser Compatibility](#browser-compatibility)
 - [See also](#see-also)
 
@@ -90,7 +97,7 @@ For distributed systems where participants are on different machines, you can
 execute each round manually:
 
 ```ts
-import { FrostParticipant } from '@substrate-system/frost-dkg'
+import { FrostParticipant } from '@substrate-system/frost-dkg/participant'
 
 // Each participant initializes independently
 const participant = new FrostParticipant(1, 3, 5)  // id=1, threshold=3, total=5
@@ -117,12 +124,13 @@ const secretShare = participant.computeSecretShare()
 const verificationShare = participant.computeVerificationShare()
 ```
 
+
 ## API
 
 
 ### `FrostDKG`
 
-Main class for running the complete DKG protocol.
+Main class for running the DKG protocol.
 
 #### Constructor
 
@@ -138,12 +146,14 @@ new FrostDKG(threshold:number, totalParticipants:number)
 ##### `run`
 
 ```ts
-async run ():Promise<{
-    threshold:number;
-    n:number;
-    participants:ParticipantState[];
-    groupPublicKey:string;
-}>
+class FrostDKG {
+    async run ():Promise<{
+        threshold:number;
+        n:number;
+        participants:ParticipantState[];
+        groupPublicKey:string;
+    }>
+}
 ```
 
 Executes the complete DKG protocol and returns the result.
@@ -151,7 +161,9 @@ Executes the complete DKG protocol and returns the result.
 ##### `initialize`
 
 ```ts
-async initialize ():Promise<void>
+class FrostDKG {
+    async initialize ():Promise<void>
+}
 ```
 
 Initializes all participants with X25519 key pairs.
@@ -159,7 +171,9 @@ Initializes all participants with X25519 key pairs.
 ##### `executeRound1`
 
 ```ts
-async executeRound1 ():Promise<void>
+class FrostDKG {
+    async executeRound1 ():Promise<void>
+}
 ```
 
 Round 1: Generates polynomial commitments and Schnorr proofs of knowledge.
@@ -167,7 +181,9 @@ Round 1: Generates polynomial commitments and Schnorr proofs of knowledge.
 ##### `executeRound2`
 
 ```ts
-async executeRound2 ():Promise<void>
+class FrostDKG {
+    async executeRound2 ():Promise<void>
+}
 ```
 
 Round 2: Generates and exchanges encrypted shares between participants.
@@ -175,13 +191,19 @@ Round 2: Generates and exchanges encrypted shares between participants.
 ##### `executeRound3`
 
 ```ts
-async executeRound3 ():Promise<void>
+class FrostDKG {
+    async executeRound3 ():Promise<void>
+}
 ```
 
 Round 3: Verifies received shares and computes final secret and
 verification shares.
 
+
+
 --------------------------------
+
+
 
 ### `FrostParticipant`
 
@@ -198,7 +220,9 @@ new FrostParticipant(id:number, threshold:number, totalParticipants:number)
 ##### `initialize`
 
 ```ts
-async initialize ():Promise<ArrayBuffer>
+class FrostParticipant {
+    async initialize ():Promise<ArrayBuffer>
+}
 ```
 
 Initializes the participant and returns their X25519 public key.
@@ -206,10 +230,12 @@ Initializes the participant and returns their X25519 public key.
 ##### `registerPeerKey`
 
 ```ts
-async registerPeerKey (
-    peerId:number,
-    publicKeyBytes:ArrayBuffer
-):Promise<void>
+class FrostParticipant {
+    async registerPeerKey (
+        peerId:number,
+        publicKeyBytes:ArrayBuffer
+    ):Promise<void>
+}
 ```
 
 Register another participant's public key for encrypted communication.
@@ -217,11 +243,13 @@ Register another participant's public key for encrypted communication.
 ##### `round1_generateCommitments`
 
 ```ts
-async round1_generateCommitments ():Promise<{
-    participantId: bigint;
-    commitments: Point[];
-    proof: { R: Point; s: bigint; A: Point };
-}>
+class FrostParticipant {
+    async round1_generateCommitments ():Promise<{
+        participantId: bigint;
+        commitments: Point[];
+        proof: { R: Point; s: bigint; A: Point };
+    }>
+}
 ```
 
 Generate polynomial coefficients and commitments.
@@ -229,7 +257,9 @@ Generate polynomial coefficients and commitments.
 ##### `verifySchnorrProof`
 
 ```ts
-verifySchnorrProof (participantId:bigint, proof):boolean
+class FrostParticipant {
+    verifySchnorrProof (participantId:bigint, proof):boolean
+}
 ```
 
 Verifies a Schnorr proof of knowledge from another participant.
@@ -237,7 +267,9 @@ Verifies a Schnorr proof of knowledge from another participant.
 ##### `round2_generateShares`
 
 ```ts
-async round2_generateShares ():Promise<Map<bigint, Uint8Array>>
+class FrostParticipant {
+    async round2_generateShares ():Promise<Map<bigint, Uint8Array>>
+}
 ```
 
 Generates encrypted shares for all other participants.
@@ -245,11 +277,13 @@ Generates encrypted shares for all other participants.
 ##### `receiveShare`
 
 ```ts
-async receiveShare (
-    fromId:number,
-    encryptedShare:Uint8Array,
-    commitments:Point[]
-):Promise<void>
+class FrostParticipant {
+    async receiveShare (
+        fromId:number,
+        encryptedShare:Uint8Array,
+        commitments:Point[]
+    ):Promise<void>
+}
 ```
 
 Receives and decrypts a share from another participant.
@@ -257,7 +291,9 @@ Receives and decrypts a share from another participant.
 ##### `verifyShare`
 
 ```ts
-verifyShare (fromId:number):boolean
+class FrostParticipant {
+    verifyShare (fromId:number):boolean
+}
 ```
 
 Verifies a received share using the sender's commitments.
@@ -265,7 +301,9 @@ Verifies a received share using the sender's commitments.
 ##### `computeSecretShare`
 
 ```ts
-computeSecretShare ():bigint
+class FrostParticipant {
+    computeSecretShare ():bigint
+}
 ```
 
 Computes the final secret share.
@@ -273,7 +311,9 @@ Computes the final secret share.
 ##### `computeVerificationShare`
 
 ```ts
-computeVerificationShare ():Point
+class FrostParticipant {
+    computeVerificationShare ():Point
+}
 ```
 
 Computes the verification share (public key share).
@@ -281,7 +321,9 @@ Computes the verification share (public key share).
 ##### `computeGroupPublicKey`
 
 ```ts
-computeGroupPublicKey (allCommitments):Point
+class FrostParticipant {
+    computeGroupPublicKey (allCommitments):Point
+}
 ```
 
 Computes the group public key from all participants' commitments.
@@ -289,7 +331,9 @@ Computes the group public key from all participants' commitments.
 ##### `exportState`
 
 ```ts
-exportState ():ParticipantState
+class FrostParticipant {
+    exportState ():ParticipantState
+}
 ```
 
 Exports the participant's state for inspection.
@@ -299,7 +343,9 @@ Exports the participant's state for inspection.
 #### `randomScalar`
 
 ```ts
-randomScalar ():bigint
+class FrostParticipant {
+    randomScalar ():bigint
+}
 ```
 
 Generates a random scalar in the curve order.
@@ -307,7 +353,9 @@ Generates a random scalar in the curve order.
 #### `scalarToBytes`
 
 ```ts
-scalarToBytes (scalar:bigint):Uint8Array
+class FrostParticipant {
+    scalarToBytes (scalar:bigint):Uint8Array
+}
 ```
 
 Converts a scalar to a 32-byte little-endian representation.
@@ -315,10 +363,12 @@ Converts a scalar to a 32-byte little-endian representation.
 #### `deriveSharedSecret`
 
 ```ts
-async deriveSharedSecret (
-    privateKey:CryptoKey,
-    publicKey:CryptoKey
-):Promise<Uint8Array>
+class FrostParticipant {
+    async deriveSharedSecret (
+        privateKey:CryptoKey,
+        publicKey:CryptoKey
+    ):Promise<Uint8Array>
+}
 ```
 
 Derives a shared secret using X25519 key agreement.
@@ -326,10 +376,12 @@ Derives a shared secret using X25519 key agreement.
 #### `encryptShare`
 
 ```ts
-async encryptShare (
-    sharedSecret:Uint8Array,
-    plaintext:Uint8Array
-):Promise<Uint8Array>
+class FrostParticipant {
+    async encryptShare (
+        sharedSecret:Uint8Array,
+        plaintext:Uint8Array
+    ):Promise<Uint8Array>
+}
 ```
 
 Encrypts data using AES-GCM with a derived key.
@@ -337,10 +389,12 @@ Encrypts data using AES-GCM with a derived key.
 #### `decryptShare`
 
 ```ts
-async decryptShare (
-    sharedSecret:Uint8Array,
-    encrypted:Uint8Array
-):Promise<Uint8Array>
+class FrostParticipant {
+    async decryptShare (
+        sharedSecret:Uint8Array,
+        encrypted:Uint8Array
+    ):Promise<Uint8Array>
+}
 ```
 
 Decrypts data encrypted with `encryptShare`.
@@ -387,11 +441,16 @@ FROST DKG consists of three rounds:
 - **Threshold Security**: Any `t` participants can reconstruct the key,
   but `t-1` cannot
 
+
+-----------
+
 ## Test
 
 ```sh
 npm test
 ```
+
+-----------
 
 ## Browser Compatibility
 
@@ -401,6 +460,10 @@ This library uses the Web Crypto API and works in all modern browsers:
 - Firefox 53+
 - Safari 11+
 
+
+-----------
+
+
 ## See also
 
 - [FROST: Flexible Round-Optimized Schnorr Threshold Signatures](https://eprint.iacr.org/2020/852)
@@ -408,6 +471,3 @@ This library uses the Web Crypto API and works in all modern browsers:
 - [@noble/curves](https://github.com/paulmillr/noble-curves) - Cryptographic
   curves implementation
 - [Pedersen's Verifiable Secret Sharing](https://link.springer.com/chapter/10.1007/3-540-46766-1_9)
-
-This implementation follows the
-[FROST DKG protocol](https://protocol.penumbra.zone/main/crypto/flow-encryption/dkg.html#frost).

@@ -244,6 +244,9 @@ export class FrostParticipant {
     ):Promise<void> {
         const senderId = BigInt(fromId)
         const senderPublicKey = this.peerPublicKeys.get(senderId)
+        if (!senderPublicKey) {
+            throw new Error(`No public key found for participant ${senderId}`)
+        }
 
         const sharedSecret = await deriveSharedSecret(
             this.x25519KeyPair!.privateKey,
@@ -338,7 +341,7 @@ export class FrostParticipant {
             n: this.n,
             secretShare: this.secretShare?.toString(),
             verificationShare: this.verificationShare?.toHex(),
-            publicKey: this.publicKey?.toHex()
+            publicKey: this.publicKey?.toHex() ?? ''
         }
     }
 }
