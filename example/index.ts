@@ -10,11 +10,6 @@ const state = State()
 
 const App: FunctionComponent = function () {
     debug('rendering...', state)
-    function truncate (str: string) {
-        if (!str) return 'N/A'
-        if (str.length <= 80) return str
-        return str.substring(0, 40) + '...' + str.substring(str.length - 40)
-    }
 
     const setTotal = useCallback((ev:InputEvent) => {
         const input = ev.target as HTMLInputElement
@@ -165,3 +160,9 @@ const App: FunctionComponent = function () {
 }
 
 render(html`<${App} />`, document.getElementById('root')!)
+
+function truncate (str:string):string {
+    if (!str) return 'N/A'
+    if (str.length <= 80) return str
+    return str.substring(0, 40) + '...' + str.substring(str.length - 40)
+}
