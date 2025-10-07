@@ -84,7 +84,10 @@ export class FrostParticipant {
     /**
      * Register peer's X25519 public key
      */
-    async registerPeerKey (peerId:number, publicKeyBytes:ArrayBuffer) {
+    async registerPeerKey (
+        peerId:number,
+        publicKeyBytes:ArrayBuffer
+    ):Promise<void> {
         const publicKey = await crypto.subtle.importKey(
             'raw',
             publicKeyBytes,
@@ -101,8 +104,8 @@ export class FrostParticipant {
      * f_i(x) = a_{i,0} + a_{i,1}*x + ... + a_{i,t-1}*x^{t-1}
      * C_{i,k} = g^{a_{i,k}}
      */
-    async round1_generateCommitments () {
-    // Generate random polynomial coefficients
+    async round1_generateCommitments ():Promise<void> {
+        // Generate random polynomial coefficients
         this.coefficients = []
         for (let i = 0; i < this.threshold; i++) {
             this.coefficients.push(randomScalar())

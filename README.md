@@ -8,36 +8,63 @@
 [![gzip size](https://img.shields.io/bundlephobia/minzip/@substrate-system/frost-dkg?style=flat-square)](https://bundlephobia.com/@substrate-system/frost-dkg)
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
-A TypeScript implementation of FROST (Flexible Round-Optimized Schnorr
-Threshold) Distributed Key Generation protocol using Ed25519.
 
-## Overview
-
-FROST DKG enables multiple participants to collaboratively generate a shared
+FROST DKG enables multiple participants to generate a shared
 secret key without any single party ever knowing the complete key. The protocol
 produces a threshold signature scheme where any `t` out of `n` participants can
 sign messages, but fewer than `t` cannot.
 
-## Features
+**_Featuring_**
 
-- **Threshold Cryptography**: Supports t-of-n threshold schemes (e.g., 3-of-5, 2-of-3)
-- **Secure Share Distribution**: Encrypted share exchange using X25519 key agreement and AES-GCM
-- **Zero-Knowledge Proofs**: Schnorr proofs of knowledge for commitment verification
+- **Threshold Cryptography**: Supports t-of-n threshold schemes
+  (e.g., 3-of-5, 2-of-3)
+- **Secure Share Distribution**: Encrypted share exchange using X25519 key
+  agreement and AES-GCM
+- **Zero-Knowledge Proofs**: Schnorr proofs of knowledge for
+  commitment verification
 - **Ed25519 Curve**: Built on the secure Ed25519 elliptic curve
-- **Full TypeScript**: Type-safe implementation with comprehensive type definitions
+- **Full TypeScript**: Type-safe implementation with comprehensive
+  type definitions
 
-## Installation
 
-```bash
-npm install frost-dkg
+<details><summary><h2>Contents</h2></summary>
+
+<!-- toc -->
+
+- [Installation](#installation)
+- [Usage](#usage)
+  * [Basic Example](#basic-example)
+  * [Advanced Usage: Manual Round Execution](#advanced-usage-manual-round-execution)
+- [API Reference](#api-reference)
+  * [`FrostDKG`](#frostdkg)
+  * [`FrostParticipant`](#frostparticipant)
+  * [Utility Functions](#utility-functions)
+- [Protocol Overview](#protocol-overview)
+  * [Round 1: Commitment Phase](#round-1-commitment-phase)
+  * [Round 2: Share Distribution](#round-2-share-distribution)
+  * [Round 3: Verification and Key Computation](#round-3-verification-and-key-computation)
+- [Security Considerations](#security-considerations)
+- [Testing](#testing)
+- [Browser Compatibility](#browser-compatibility)
+- [See also](#see-also)
+
+<!-- tocstop -->
+
+</details>
+
+
+## Install
+
+```sh
+npm i -S @substrate-system/frost-dkg
 ```
 
-## Usage
+## Use
 
-### Basic Example
+### Example
 
-```typescript
-import { FrostDKG } from 'frost-dkg'
+```ts
+import { FrostDKG } from '@substrate-system/frost-dkg'
 
 // Create a 3-of-5 threshold scheme
 const dkg = new FrostDKG(3, 5)
@@ -57,15 +84,16 @@ result.participants.forEach(p => {
 })
 ```
 
-### Advanced Usage: Manual Round Execution
+### Advanced Example: Manual Round Execution
 
-For distributed systems where participants are on different machines, you can execute each round manually:
+For distributed systems where participants are on different machines, you can
+execute each round manually:
 
-```typescript
-import { FrostParticipant } from 'frost-dkg'
+```ts
+import { FrostParticipant } from '@substrate-system/frost-dkg'
 
 // Each participant initializes independently
-const participant = new FrostParticipant(1, 3, 5) // id=1, threshold=3, total=5
+const participant = new FrostParticipant(1, 3, 5)  // id=1, threshold=3, total=5
 const myPublicKey = await participant.initialize()
 
 // Exchange public keys with other participants
@@ -89,7 +117,8 @@ const secretShare = participant.computeSecretShare()
 const verificationShare = participant.computeVerificationShare()
 ```
 
-## API Reference
+## API
+
 
 ### `FrostDKG`
 
@@ -97,8 +126,8 @@ Main class for running the complete DKG protocol.
 
 #### Constructor
 
-```typescript
-new FrostDKG(threshold: number, totalParticipants: number)
+```ts
+new FrostDKG(threshold:number, totalParticipants:number)
 ```
 
 - `threshold`: Minimum number of participants needed to sign (must be ≥ 2)
@@ -111,7 +140,7 @@ new FrostDKG(threshold: number, totalParticipants: number)
 Executes the complete DKG protocol and returns the result.
 
 **Returns:**
-```typescript
+```ts
 {
   threshold: number
   n: number
@@ -129,7 +158,7 @@ Executes the complete DKG protocol and returns the result.
 
 ##### `async initialize()`
 
-Initializes all participants with X25519 key pairs for encrypted communication.
+Initializes all participants with X25519 key pairs.
 
 ##### `async executeRound1()`
 
@@ -141,7 +170,10 @@ Round 2: Generates and exchanges encrypted shares between participants.
 
 ##### `async executeRound3()`
 
-Round 3: Verifies received shares and computes final secret and verification shares.
+Round 3: Verifies received shares and computes final secret and
+verification shares.
+
+--------------------------------
 
 ### `FrostParticipant`
 
@@ -149,8 +181,8 @@ Individual participant in the DKG protocol.
 
 #### Constructor
 
-```typescript
-new FrostParticipant(id: number, threshold: number, totalParticipants: number)
+```ts
+new FrostParticipant(id:number, threshold:number, totalParticipants:number)
 ```
 
 #### Methods
@@ -161,14 +193,25 @@ Initializes the participant and returns their X25519 public key.
 
 ##### `async registerPeerKey(peerId: number, publicKeyBytes: ArrayBuffer): Promise<void>`
 
-Registers another participant's public key for encrypted communication.
+```ts
+registerPeerKey (
+    peerId:number,
+    publicKeyBytes:ArrayBuffer
+):Promise<void>
+```
 
-##### `async round1_generateCommitments()`
+Register another participant's public key for encrypted communication.
 
-Generates polynomial coefficients and commitments.
+##### `round1_generateCommitments`
+
+```ts
+async round1_generateCommitments ():Promise<void>
+```
+
+Generate polynomial coefficients and commitments.
 
 **Returns:**
-```typescript
+```ts
 {
   participantId: bigint
   commitments: Point[]
