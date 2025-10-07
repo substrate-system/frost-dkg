@@ -17,6 +17,15 @@ import { bytesToNumberLE } from '@noble/curves/utils.js'
 // Ed25519 curve order
 const CURVE_ORDER = ed25519.Point.CURVE().n
 
+export type ParticipantState = {
+    id:string;
+    threshold:number;
+    n:number;
+    secretShare?:string;
+    verificationShare:string;
+    publicKey:string
+}
+
 /**
  * Modular arithmetic helper
  */
@@ -56,22 +65,6 @@ export function randomScalar () {
 }
 
 /**
- * Hash to scalar using SHA-512
- */
-function hashToScalar (...inputs) {
-    const concat = new Uint8Array(inputs.reduce((acc, inp) => acc + inp.length, 0))
-    let offset = 0
-    for (const input of inputs) {
-        concat.set(input, offset)
-        offset += input.length
-    }
-
-    const hash = sha512(concat)
-    const num = bytesToNumberLE(hash)
-    return mod(num)
-}
-
-/**
  * Convert bigint to 32-byte little-endian array
  */
 export function scalarToBytes (scalar) {
@@ -82,24 +75,6 @@ export function scalarToBytes (scalar) {
         n >>= 8n
     }
     return bytes
-}
-
-/**
- * Convert bigint to bytes for point serialization
- */
-function bigintToBytes (n) {
-    return scalarToBytes(n)
-}
-
-/**
- * X25519 key generation and ECDH
- */
-async function generateX25519KeyPair () {
-    return await crypto.subtle.generateKey(
-        { name: 'X25519' },
-        true,
-        ['deriveBits']
-    )
 }
 
 export async function deriveSharedSecret (privateKey, publicKey) {
@@ -163,21 +138,21 @@ export async function decryptShare (sharedSecret, encrypted) {
  * FROST DKG Participant
  */
 export class FrostParticipant {
-    public id:bigint
-    public threshold:number
-    public n:number
-    public coefficients:bigint[] | null
-    public commitments:any[] | null
-    public proofOfKnowledge:any
-    public x25519KeyPair:any
-    public peerPublicKeys:Map<bigint, any>
-    public shares:Map<bigint, bigint>
-    public receivedShares:Map<bigint, any>
-    public secretShare:bigint | null
-    public verificationShare:any
-    public publicKey:any
+    id:bigint
+    threshold:number
+    n:number
+    coefficients:bigint[]|null
+    commitments:any[]|null
+    proofOfKnowledge:any
+    x25519KeyPair:any
+    peerPublicKeys:Map<bigint, any>
+    shares:Map<bigint, bigint>
+    receivedShares:Map<bigint, any>
+    secretShare:bigint|null
+    verificationShare:any
+    publicKey:any
 
-    constructor (id, threshold, totalParticipants) {
+    constructor (id:number, threshold:number, totalParticipants:number) {
         this.id = BigInt(id)
         this.threshold = threshold
         this.n = totalParticipants
@@ -205,16 +180,19 @@ export class FrostParticipant {
     }
 
     /**
-   * Initialize with X25519 keypair for encrypted channels
-   */
+     * Initialize with X25519 keypair for encrypted channels
+     */
     async initialize () {
         this.x25519KeyPair = await generateX25519KeyPair()
-        return await crypto.subtle.exportKey('raw', this.x25519KeyPair.publicKey)
+        return await crypto.subtle.exportKey(
+            'raw',
+            this.x25519KeyPair.publicKey
+        )
     }
 
     /**
-   * Register peer's X25519 public key
-   */
+     * Register peer's X25519 public key
+     */
     async registerPeerKey (peerId, publicKeyBytes) {
         const publicKey = await crypto.subtle.importKey(
             'raw',
@@ -227,10 +205,10 @@ export class FrostParticipant {
     }
 
     /**
-   * Round 1: Generate polynomial and commitments
-   * f_i(x) = a_{i,0} + a_{i,1}*x + ... + a_{i,t-1}*x^{t-1}
-   * C_{i,k} = g^{a_{i,k}}
-   */
+     * Round 1: Generate polynomial and commitments
+     * f_i(x) = a_{i,0} + a_{i,1}*x + ... + a_{i,t-1}*x^{t-1}
+     * C_{i,k} = g^{a_{i,k}}
+     */
     async round1_generateCommitments () {
     // Generate random polynomial coefficients
         this.coefficients = []
@@ -256,9 +234,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Generate Schnorr proof: PoK{a_0}
-   * Proves knowledge of discrete log without revealing it
-   */
+     * Generate Schnorr proof: PoK{a_0}
+     * Proves knowledge of discrete log without revealing it
+     */
     generateSchnorrProof (secret) {
     // k ← random scalar
         const k = randomScalar()
@@ -282,8 +260,8 @@ export class FrostParticipant {
     }
 
     /**
-   * Verify Schnorr proof from another participant
-   */
+     * Verify Schnorr proof from another participant
+     */
     verifySchnorrProof (participantId, proof) {
         const { R, s, A } = proof
 
@@ -301,9 +279,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Round 2: Generate shares for all participants
-   * s_{i,j} = f_i(j) = ∑_{k=0}^{t-1} a_{i,k} * j^k
-   */
+     * Round 2: Generate shares for all participants
+     * s_{i,j} = f_i(j) = ∑_{k=0}^{t-1} a_{i,k} * j^k
+     */
     async round2_generateShares () {
         if (!this.coefficients) {
             throw new Error('Coefficients not initialized')
@@ -347,8 +325,8 @@ export class FrostParticipant {
     }
 
     /**
-   * Receive and decrypt share from another participant
-   */
+     * Receive and decrypt share from another participant
+     */
     async receiveShare (fromId, encryptedShare, commitments) {
         const senderId = BigInt(fromId)
         const senderPublicKey = this.peerPublicKeys.get(senderId)
@@ -365,9 +343,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Round 3: Verify received share using commitments
-   * Verify: g^{s_{i,j}} = ∏_{k=0}^{t-1} C_{i,k}^{j^k}
-   */
+     * Round 3: Verify received share using commitments
+     * Verify: g^{s_{i,j}} = ∏_{k=0}^{t-1} C_{i,k}^{j^k}
+     */
     verifyShare (fromId) {
         const senderId = BigInt(fromId)
         const data = this.receivedShares.get(senderId)
@@ -390,9 +368,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Compute final secret share
-   * s_i = ∑_{j=1}^{n} s_{j,i}
-   */
+     * Compute final secret share
+     * s_i = ∑_{j=1}^{n} s_{j,i}
+     */
     computeSecretShare () {
         let secretShare = 0n
 
@@ -409,9 +387,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Compute verification share (public key share)
-   * Y_i = g^{s_i}
-   */
+     * Compute verification share (public key share)
+     * Y_i = g^{s_i}
+     */
     computeVerificationShare () {
         if (this.secretShare === null) {
             throw new Error('Secret share not computed')
@@ -422,9 +400,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Compute group public key
-   * Y = ∏_{i=1}^{n} C_{i,0}
-   */
+     * Compute group public key
+     * Y = ∏_{i=1}^{n} C_{i,0}
+     */
     computeGroupPublicKey (allCommitments) {
         let groupKey = ed25519.Point.ZERO
 
@@ -437,9 +415,9 @@ export class FrostParticipant {
     }
 
     /**
-   * Export state for inspection
-   */
-    exportState () {
+     * Export state for inspection
+     */
+    exportState ():ParticipantState {
         return {
             id: this.id.toString(),
             threshold: this.threshold,
@@ -455,11 +433,11 @@ export class FrostParticipant {
  * FROST DKG Protocol Coordinator
  */
 export class FrostDKG {
-    public threshold:number
-    public n:number
-    public participants:FrostParticipant[]
-    public commitments:Map<bigint, any>
-    public groupPublicKey:any
+    threshold:number
+    n:number
+    participants:FrostParticipant[]
+    commitments:Map<bigint, any>
+    groupPublicKey:any
 
     constructor (threshold, totalParticipants) {
         if (threshold < 2) {
@@ -477,10 +455,10 @@ export class FrostDKG {
     }
 
     /**
-   * Initialize all participants with encryption keys
-   */
-    async initialize () {
-    // Create participants
+     * Initialize all participants with encryption keys
+     */
+    async initialize ():Promise<void> {
+        // Create participants
         for (let i = 1; i <= this.n; i++) {
             const participant = new FrostParticipant(i, this.threshold, this.n)
             this.participants.push(participant)
@@ -504,8 +482,9 @@ export class FrostDKG {
     }
 
     /**
-   * Execute Round 1: Generate commitments and proofs
-   */
+     * Execute Round 1: Generate commitments and proofs.
+     * @returns {Promise<void>}
+     */
     async executeRound1 () {
         for (const p of this.participants) {
             const data = await p.round1_generateCommitments()
@@ -520,10 +499,11 @@ export class FrostDKG {
     }
 
     /**
-   * Execute Round 2: Generate and exchange shares
-   */
+     * Execute Round 2: Generate and exchange shares
+     * @returns {Promise<void>}
+     */
     async executeRound2 () {
-    // Generate shares
+        // Generate shares
         const allShares = new Map()
         for (const p of this.participants) {
             const shares = await p.round2_generateShares()
@@ -545,10 +525,11 @@ export class FrostDKG {
     }
 
     /**
-   * Execute Round 3: Verify shares and compute keys
-   */
-    async executeRound3 () {
-    // Verify all shares
+     * Execute Round 3: Verify shares and compute keys
+     * @returns {Promise<void>}
+     */
+    async executeRound3 ():Promise<void> {
+        // Verify all shares
         for (const p of this.participants) {
             for (const [fromId, _] of p.receivedShares) {
                 const valid = p.verifyShare(fromId)
@@ -565,8 +546,10 @@ export class FrostDKG {
         }
 
         // Compute group public key
-        const allCommitments = Array.from(this.commitments.values()).map(d => d.commitments)
-        this.groupPublicKey = this.participants[0].computeGroupPublicKey(allCommitments)
+        const allCommitments = (Array.from(this.commitments.values())
+            .map(d => d.commitments))
+        this.groupPublicKey = (this.participants[0]
+            .computeGroupPublicKey(allCommitments))
 
         // All participants should compute the same group key
         for (const p of this.participants) {
@@ -575,9 +558,14 @@ export class FrostDKG {
     }
 
     /**
-   * Run complete DKG protocol
-   */
-    async run () {
+     * Run complete DKG protocol
+     */
+    async run ():Promise<{
+        threshold:number;
+        n:number;
+        participants:ParticipantState[];
+        groupPublicKey:string;
+    }> {
         await this.initialize()
         await this.executeRound1()
         await this.executeRound2()
@@ -594,3 +582,37 @@ export class FrostDKG {
 
 // Re-export ed25519 for tests
 export { ed25519 }
+
+/**
+ * Hash to scalar using SHA-512
+ */
+function hashToScalar (...inputs) {
+    const concat = new Uint8Array(inputs.reduce((acc, inp) => acc + inp.length, 0))
+    let offset = 0
+    for (const input of inputs) {
+        concat.set(input, offset)
+        offset += input.length
+    }
+
+    const hash = sha512(concat)
+    const num = bytesToNumberLE(hash)
+    return mod(num)
+}
+
+/**
+ * Convert bigint to bytes for point serialization
+ */
+function bigintToBytes (n) {
+    return scalarToBytes(n)
+}
+
+/**
+ * X25519 key generation and ECDH
+ */
+async function generateX25519KeyPair () {
+    return await crypto.subtle.generateKey(
+        { name: 'X25519' },
+        true,
+        ['deriveBits']
+    )
+}

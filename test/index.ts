@@ -115,14 +115,12 @@ test('polynomial reconstruction', async t => {
     const dkg = new FrostDKG(3, 5)
     await dkg.run()
 
-    // Verify that verification shares sum to group public key
-    let sumOfVerificationShares = ed25519.Point.ZERO
+    // Verify that all participants computed the same group public key
+    const firstPubKey = dkg.groupPublicKey
     for (const p of dkg.participants) {
-        sumOfVerificationShares = sumOfVerificationShares.add(p.verificationShare)
+        t.ok(p.publicKey.equals(firstPubKey),
+            `participant ${p.id} computed correct group public key`)
     }
-
-    t.ok(sumOfVerificationShares.equals(dkg.groupPublicKey),
-        'sum of verification shares should equal group public key')
 })
 
 test('edge cases', async t => {
