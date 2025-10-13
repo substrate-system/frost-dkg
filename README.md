@@ -9,8 +9,9 @@
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
-Multiple participants generate a shared secret key. No single party
-ever knows the complete key. The protocol produces a threshold signature
+A group of participants collaboratively generate a public-private keypair,
+and **no single party ever knows the complete private key**.
+The protocol produces a threshold signature
 scheme where any `t` out of `n` participants can sign messages, but fewer
 than `t` cannot.
 
@@ -685,8 +686,9 @@ This library uses the Web Crypto API and works in all modern browsers:
 
 ## See also
 
-- [FROST: Flexible Round-Optimized Schnorr Threshold Signatures](https://eprint.iacr.org/2020/852)
-- [Penumbra FROST DKG Documentation](https://protocol.penumbra.zone/main/crypto/flow-encryption/dkg.html#frost)
-- [@noble/curves](https://github.com/paulmillr/noble-curves) - Cryptographic
-  curves implementation
-- [Pedersen's Verifiable Secret Sharing](https://link.springer.com/chapter/10.1007/3-540-46766-1_9)
+* [FROST: Flexible Round-Optimized Schnorr Threshold Signatures](https://eprint.iacr.org/2020/852)
+* [Penumbra FROST DKG Documentation](https://protocol.penumbra.zone/main/crypto/flow-encryption/dkg.html#frost)
+* [@noble/curves](https://github.com/paulmillr/noble-curves) - Cryptographic
+* curves implementation
+* [Pedersen's Verifiable Secret Sharing](https://link.springer.com/chapter/10.1007/3-540-46766-1_9)
+* [source.ngetowrk/orbis/dkg](https://docs.source.network/orbis/concepts/dkg/)
