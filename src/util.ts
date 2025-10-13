@@ -110,10 +110,14 @@ export function signatureToU8Array (
 /**
  * Generate random scalar in range [1, CURVE_ORDER)
  */
-export function randomScalar () {
-    const bytes = randomBytes(32)
-    const num = bytesToNumberLE(bytes)
-    return mod(num) || 1n // Ensure non-zero
+export function randomScalar ():bigint {
+    while (true) {
+        const bytes = randomBytes(32)
+        const num = bytesToNumberLE(bytes)
+        const scalar = mod(num)
+        if (scalar !== 0n) return scalar
+        // If zero, loop and try again
+    }
 }
 
 /**
