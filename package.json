@@ -41,10 +41,11 @@
     "postversion": "git push --follow-tags && npm publish",
     "prepublishOnly": "npm run build"
   },
-  "dependencies": {},
-  "devDependencies": {
+  "dependencies": {
     "@noble/curves": "^2.0.1",
-    "@noble/hashes": "^2.0.1",
+    "@noble/hashes": "^2.0.1"
+  },
+  "devDependencies": {
     "@preact/preset-vite": "^2.10.2",
     "@preact/signals": "^2.3.2",
     "@substrate-system/a11y": "^0.0.13",
