@@ -11,6 +11,7 @@ import { State } from './state.js'
 import { signatureToHex } from '../src/util.js'
 const debug = Debug(import.meta.env.DEV)
 const NBSP = '\u00A0'
+const NDASH = '\u2013'
 
 const state = State()
 
@@ -105,17 +106,33 @@ const App:FunctionComponent = function () {
                             <li>
                                 <strong>Round 1: </strong>
                                 Each participant generates a polynomial and
-                                creates commitments.
+                                creates commitments. A Schnorr proof is generated
+                                to prove knowledge of the secret coefficient.
                             </li>
                             <li>
                                 <strong>Round 2: </strong>
-                                Participants compute shares for each other and
-                                encrypt them.
+                                Participants compute secret shares for every other
+                                participant by evaluating their polynomial at each
+                                participant's identifier. These shares are then
+                                encrypted and exchanged with all
+                                other participants.
                             </li>
                             <li>
                                 <strong>Round 3: </strong>
-                                Shares are verified and the group public key
-                                is computed
+                                Each participant first verifies the Schnorr proofs
+                                from all others, then decrypts and verifies the
+                                shares they received using the commitments. If all
+                                verifications pass, the group public key is
+                                computed by combining all commitments.
+                            </li>
+
+                            <li>
+                                <strong>Signatures: </strong>
+                                Each participant computes their partial signature
+                                share using their secret, their random nonces, a
+                                Lagrange coefficient, and the challenge derived
+                                from the message. The signature shares are then
+                                combined by simple addition.
                             </li>
                         </ol>
 
@@ -180,7 +197,12 @@ const App:FunctionComponent = function () {
 
                             ${sig.value && html`
                                 <div class="signature-result">
-                                    <h3>Signature (hex)</h3>
+                                    <div class="h3">
+                                        <h3>Signature (hex)</h3>
+                                        <copy-button
+                                            payload="${signatureToHex(sig.value)}"
+                                        ></copy-button>
+                                    </div>
                                     <div class="signature-box">
                                         <code>${signatureToHex(sig.value)}</code>
                                     </div>
@@ -192,9 +214,9 @@ const App:FunctionComponent = function () {
                                                 'invalid'
                                             }"
                                         >
-                                            ${state.signing.value.verificationResult
-                                                ? '✓ Signature is VALID'
-                                                : '✗ Signature is INVALID'
+                                            ${verificationResult.value ?
+                                                '✓ Signature is VALID' :
+                                                '✗ Signature is INVALID'
                                             }
                                         </div>
                                     `}
@@ -205,7 +227,7 @@ const App:FunctionComponent = function () {
                         <div class="signing-section disabled">
                             <h2>Threshold Signing</h2>
                             <p class="info-text">
-                                Run the DKG protocol first to generate keys
+                                Generate each machine's keys first.
                             </p>
                         </div>
                     `}
@@ -254,9 +276,10 @@ const App:FunctionComponent = function () {
                         <h2>Machines</h2>
                         <p>
                             These are all separate machines.
-                            They can generate keys independently, then
-                            a minimum of <code>t</code> can collaborate to
-                            sign something.
+                            They must coordinate to generate their IDs, which are
+                            <code> BigInt</code>s from 1 ${NDASH} n.${NBSP}
+                            A minimum of number of <code>t</code> can
+                            collaborate to sign something.
                         </p>
 
                         <div class="machine-boxes">

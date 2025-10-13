@@ -520,12 +520,16 @@ button {
 .signature-result {
     background: white;
     padding: 1.5rem;
-    border: 2px solid var(--primary);
+    border: 2px solid;
     margin-top: 2rem;
+
+    & div.h3 {
+        display: flex;
+        justify-content: space-between;
+    }
 
     & h3 {
         margin-top: 0;
-        color: var(--primary);
     }
 }
 

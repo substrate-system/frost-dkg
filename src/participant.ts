@@ -10,7 +10,8 @@ import {
     scalarToBytes,
     encryptShare,
     decryptShare,
-    bytesToNumberLE
+    bytesToNumberLE,
+    publicKey as getPublicKey
 } from './util.js'
 import { ed25519 } from '@noble/curves/ed25519.js'
 import { type EdwardsPoint } from '@noble/curves/abstract/edwards.js'
@@ -340,16 +341,21 @@ export class FrostParticipant {
     /**
      * Compute group public key
      * Y = ∏_{i=1}^{n} C_{i,0}
+     *
+     * @param {EdwardsPoint[][]} allCommitments All commitments (from all
+     * participants) in this scheme.
+     * @returns {EdwardsPoint} The Ed25519 public key.
+     */
+    static publicKey (allCommitments:EdwardsPoint[][]):EdwardsPoint {
+        return getPublicKey(allCommitments)
+    }
+
+    /**
+     * Compute and set this.publicKey.
      */
     computeGroupPublicKey (allCommitments:EdwardsPoint[][]):EdwardsPoint {
-        let groupKey = ed25519.Point.ZERO
-
-        for (const commitments of allCommitments) {
-            groupKey = groupKey.add(commitments[0])
-        }
-
-        this.publicKey = groupKey
-        return groupKey
+        this.publicKey = FrostParticipant.publicKey(allCommitments)
+        return this.publicKey
     }
 
     /**

@@ -1,11 +1,8 @@
 {
-  "private": true,
-  "type": "module",
+  "name": "@substrate-system/frost-dkg",
   "version": "0.0.0",
-  "main": "dist/index.js",
-  "files": [
-    "./dist/*"
-  ],
+  "description": "FROST distributed key generation",
+  "type": "module",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -16,6 +13,15 @@
       "require": "./dist/*.cjs"
     }
   },
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "files": [
+    "./dist/*"
+  ],
   "scripts": {
     "lint": "eslint \"./**/*.{ts,js}\"",
     "test:browser": "esbuild ./test/index.ts --bundle | tapout",
@@ -25,7 +31,7 @@
     "build-cjs:min": "esbuild src/*.ts --format=cjs --minify --keep-names --tsconfig=tsconfig.build.json --outdir=./dist --out-extension:.js=.min.cjs --sourcemap",
     "build-esm": "esbuild src/*.ts --format=esm --metafile=dist/meta.json --keep-names --tsconfig=tsconfig.build.json --outdir=./dist --sourcemap && tsc --emitDeclarationOnly --project tsconfig.build.json --outDir dist",
     "build-esm:min": "esbuild ./src/*.ts --format=esm --keep-names --bundle --tsconfig=tsconfig.build.json --minify --out-extension:.js=.min.js --outdir=./dist --sourcemap",
-    "build-example": "mkdir -p ./public && rm -rf ./public/* && VITE_DEBUG_MODE=staging vite --mode staging --base=\"/repo-name\" build",
+    "build-example": "mkdir -p ./public && rm -rf ./public/* && VITE_DEBUG_MODE=staging vite --mode staging --base=\"frost-dkg\" build",
     "build-docs": "typedoc ./src/index.ts",
     "build": "mkdir -p ./dist && rm -rf ./dist/* && npm run build-cjs && npm run build-esm && npm run build-esm:min && npm run build-cjs:min",
     "start": "vite",
@@ -35,6 +41,7 @@
     "postversion": "git push --follow-tags && npm publish",
     "prepublishOnly": "npm run build"
   },
+  "dependencies": {},
   "devDependencies": {
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
@@ -61,6 +68,22 @@
     "typescript": "^5.9.2",
     "vite": "^7.0.6"
   },
-  "author": "nichoth <nichoth@nichoth.com> (https://nichoth.com)",
-  "license": "SEE LICENSE IN LICENSE"
+  "keywords": [
+    "FROST",
+    "distributed",
+    "cryptography",
+    "key",
+    "generation",
+    "crypto"
+  ],
+  "homepage": "https://github.com/substrate-system/frost-dkg",
+  "bugs": {
+    "url": "https://github.com/substrate-system/frost-dkg/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/substrate-system/frost-dkg.git"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "nichoth <nichoth@nichoth.com> (https://nichoth.com)"
 }

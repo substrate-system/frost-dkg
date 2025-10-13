@@ -3,11 +3,22 @@ import { sha512 } from '@noble/hashes/sha2.js'
 import { bytesToNumberLE } from '@noble/curves/utils.js'
 import { randomBytes } from '@noble/hashes/utils.js'
 import { type FrostSignature } from './signing'
+import { type EdwardsPoint } from '@noble/curves/abstract/edwards.js'
 
 export { bytesToNumberLE }
 
 // Ed25519 curve order
 const CURVE_ORDER = ed25519.Point.CURVE().n
+
+export function publicKey (allCommitments:EdwardsPoint[][]):EdwardsPoint {
+    let groupKey = ed25519.Point.ZERO
+
+    for (const commitments of allCommitments) {
+        groupKey = groupKey.add(commitments[0])
+    }
+
+    return groupKey
+}
 
 /**
  * Modular arithmetic helper

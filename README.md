@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
-Multiple participants generate a shared secret key, and no single party
+Multiple participants generate a shared secret key. No single party
 ever knows the complete key. The protocol produces a threshold signature
 scheme where any `t` out of `n` participants can sign messages, but fewer
 than `t` cannot.
@@ -77,7 +77,7 @@ npm i -S @substrate-system/frost-dkg
 In a real life, each participant runs independently on different machines.
 (You would implement a network layer to pass messages between them.)
 
-The peer IDs should be consecurtive numbers from 1 - `<total number of peers>`.
+The peer IDs should be consecutive numbers from 1 - `<total number of peers>`.
 The peer IDs must be coordinated amongst peers to avoid collisions.
 
 >
@@ -108,8 +108,8 @@ await participant.registerPeerKey(3, publicKey3)
 await participant.registerPeerKey(4, publicKey4)
 await participant.registerPeerKey(5, publicKey5)
 
-// Round 1: Generate commitments and proof
-// broadcast these in the next step
+// Round 1: Generate commitments and proof.
+// Broadcast these in the next step.
 const { commitments, proof } = await participant.round1_generateCommitments()
 ```
 
@@ -158,7 +158,7 @@ const encryptedShares = await participant.round2_generateShares()
 
 After Round 2, each participant has received encrypted shares from all other
 participants. The `receiveShare` method decrypts these shares using the X25519
-shared secret established during initialization.
+shared secret established during step 1.
 
 The `verifyShare` method then uses Pedersen commitments (the polynomial
 commitments from Round 1) to cryptographically verify that each decrypted share
@@ -186,6 +186,8 @@ participant.verifyShare(5)  // true
 // Compute final key material
 const secret = participant.computeSecretShare()  // secret value
 const myVerification = participant.computeVerificationShare()
+
+// This computes and sets the public key as `participant.publicKey`.
 const groupPublicKey = participant.computeGroupPublicKey([
   commitments1,  // my own
   commitments2,
@@ -204,6 +206,7 @@ console.log('Group public key:', groupPublicKey.toHex())
 
 #### Secrets and Verification
 
+In the last example, we generated a few things.
 **What to do with these values**:
 
 `secret`: Your portion of the distributed private key
@@ -245,7 +248,7 @@ const verificationShares = new Map([
   [5n, verificationShare5]
 ])
 
-// participants 1, 3, and 5 are signing.
+// participants 1, 3, and 5 are signing. Each signer is a different machine.
 // Each creates a FrostSigner with their own secret share
 const signer1 = new FrostSigner(
   1n,
@@ -255,6 +258,8 @@ const signer1 = new FrostSigner(
   verificationShares
 )
 
+// machine 3
+
 const signer3 = new FrostSigner(
     3n,
     secret3,
@@ -262,6 +267,8 @@ const signer3 = new FrostSigner(
     groupPublicKey,
     verificationShares
 )
+
+// machine 5
 
 const signer5 = new FrostSigner(
     5n,
@@ -284,6 +291,8 @@ const commitments = [commitment1, commitment3, commitment5]
 const share1 = signer1.generateSignatureShare(message, commitments, signerIds)
 const share3 = signer3.generateSignatureShare(message, commitments, signerIds)
 const share5 = signer5.generateSignatureShare(message, commitments, signerIds)
+
+// these signature shares can be transferred to any machine to verify
 const shares = [share1, share3, share5]
 
 // Anyone can aggregate the shares into a final signature
