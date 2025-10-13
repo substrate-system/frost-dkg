@@ -11,7 +11,8 @@ import {
     encryptShare,
     decryptShare,
     bytesToNumberLE,
-    publicKey as getPublicKey
+    publicKey as getPublicKey,
+    randomParticipantId
 } from './util.js'
 import { ed25519 } from '@noble/curves/ed25519.js'
 import { type EdwardsPoint } from '@noble/curves/abstract/edwards.js'
@@ -49,6 +50,7 @@ export class FrostParticipant {
     id:bigint
     threshold:number
     n:number
+    participantIds:Set<bigint>
     coefficients:bigint[]|null
     commitments:EdwardsPoint[]|null
     proofOfKnowledge:SchnorrProof|null
@@ -60,10 +62,13 @@ export class FrostParticipant {
     verificationShare:EdwardsPoint|null
     publicKey:EdwardsPoint|null
 
-    constructor (id:number, threshold:number, totalParticipants:number) {
-        this.id = BigInt(id)
+    constructor (id:number|bigint, threshold:number, totalParticipants:number) {
+        this.id = typeof id === 'bigint' ? id : BigInt(id)
         this.threshold = threshold
         this.n = totalParticipants
+
+        // Track all participant IDs (including self)
+        this.participantIds = new Set<bigint>([this.id])
 
         // Polynomial coefficients (scalars)
         this.coefficients = null
@@ -89,17 +94,23 @@ export class FrostParticipant {
 
     /**
      * Create and initialize a new FrostParticipant
-     * @param id - Unique identifier for this participant (1-indexed)
      * @param threshold - Minimum number of participants needed for signing
      * @param totalParticipants - Total number of participants in the DKG
+     * @param {bigint|number} id - Unique identifier for this participant
+     * (can be any BigInt). If not provided, a random ID will be generated.
      * @returns {Promise<FrostParticipant>} Initialized participant
      */
     static async init (
-        id:number,
         threshold:number,
-        totalParticipants:number
+        totalParticipants:number,
+        id?:number|bigint
     ):Promise<FrostParticipant> {
-        const participant = new FrostParticipant(id, threshold, totalParticipants)
+        const participantId = id !== undefined ? id : randomParticipantId()
+        const participant = new FrostParticipant(
+            participantId,
+            threshold,
+            totalParticipants
+        )
         participant.x25519KeyPair = await generateX25519KeyPair()
         return participant
     }
@@ -121,9 +132,11 @@ export class FrostParticipant {
 
     /**
      * Register peer's X25519 public key
+     * @param peerId - The peer's unique identifier (can be any BigInt)
+     * @param publicKeyBytes - The peer's X25519 public key
      */
     async registerPeerKey (
-        peerId:number,
+        peerId:number|bigint,
         publicKeyBytes:ArrayBuffer
     ):Promise<void> {
         const publicKey = await crypto.subtle.importKey(
@@ -134,7 +147,9 @@ export class FrostParticipant {
             []
         )
 
-        this.peerPublicKeys.set(BigInt(peerId), publicKey)
+        const peerIdBigInt = typeof peerId === 'bigint' ? peerId : BigInt(peerId)
+        this.peerPublicKeys.set(peerIdBigInt, publicKey)
+        this.participantIds.add(peerIdBigInt)
     }
 
     /**
@@ -219,12 +234,19 @@ export class FrostParticipant {
             throw new Error('Coefficients not initialized')
         }
 
+        // Verify we have all peer keys registered
+        if (this.participantIds.size !== this.n) {
+            throw new Error(
+                `Expected ${this.n} participants, but only ${this.participantIds.size} registered. ` +
+                'Ensure all peer keys are registered before Round 2.'
+            )
+        }
+
         const encryptedShares = new Map<bigint, Uint8Array<ArrayBuffer>>()
 
-        for (let j = 1; j <= this.n; j++) {
-            const recipientId = BigInt(j)
-
-            // Evaluate polynomial at point j
+        // Iterate over actual participant IDs instead of 1..n
+        for (const recipientId of this.participantIds) {
+            // Evaluate polynomial at point recipientId
             let share = 0n
             for (let k = 0; k < this.coefficients.length; k++) {
                 const term = modMul(

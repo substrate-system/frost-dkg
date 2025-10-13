@@ -117,6 +117,17 @@ export function randomScalar () {
 }
 
 /**
+ * Generate a random participant ID (64-bit BigInt).
+ * Provides sufficient randomness to avoid collisions among participants.
+ */
+export function randomParticipantId ():bigint {
+    const bytes = randomBytes(8)  // 64 bits
+    const num = bytesToNumberLE(bytes)
+    // Ensure it's positive and non-zero
+    return num > 0n ? num : num + (1n << 64n)
+}
+
+/**
  * Convert bigint to 32-byte little-endian array
  */
 export function scalarToBytes (scalar) {

@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
-A group of participants collaboratively generate a public-private keypair,
+A group of participants collaboratively generates a public-private keypair,
 and **no single party ever knows the complete private key**.
 The protocol produces a threshold signature
 scheme where any `t` out of `n` participants can sign messages, but fewer
@@ -38,12 +38,9 @@ than `t` cannot.
     + [Secrets and Verification](#secrets-and-verification)
   * [Sign Something](#sign-something)
 - [API](#api)
-  * [`FrostDKG`](#frostdkg)
-    + [Constructor](#constructor)
-    + [Methods](#methods)
   * [`FrostParticipant`](#frostparticipant)
     + [Static Methods](#static-methods)
-    + [Methods](#methods-1)
+    + [Methods](#methods)
   * [Utility Functions](#utility-functions)
     + [`randomScalar`](#randomscalar)
     + [`scalarToBytes`](#scalartobytes)
@@ -78,36 +75,40 @@ npm i -S @substrate-system/frost-dkg
 In a real life, each participant runs independently on different machines.
 (You would implement a network layer to pass messages between them.)
 
-The peer IDs should be consecutive numbers from 1 - `<total number of peers>`.
-The peer IDs must be coordinated amongst peers to avoid collisions.
-
 >
 > [!IMPORTANT]
-> Before starting, participants must coordinate to ensure each has a unique ID
-> (1 through n) to avoid collisions. The threshold and total participants are
-> typically already agreed upon (e.g., "we're doing a 3-of-5 scheme"), but if
-> they mismatch, the protocol will fail during verification.
+> Participants should be certain that each has a unique ID
+> to avoid collisions. Participant IDs can be any BigInt value (e.g., 42, 1337,
+> or random values), as long as they are unique. The threshold and total
+> participants are typically already agreed upon (e.g., "we're doing a 3-of-5
+> scheme"), but if they mismatch, the protocol will fail during verification.
 >
 
 ```ts
 import { FrostParticipant } from '@substrate-system/frost-dkg/participant'
 
-// Initialize participant 1 of a 3-of-5 scheme
-// My ID is 1, threshold is 3, total participants is 5
-const participant = await FrostParticipant.init(1, 3, 5)  // this is me
+// Initialize a participant in a 3-of-5 scheme
+// Option 1: Provide a specific ID (here we use 42n)
+// Parameters: (threshold, totalParticipants, id)
+const participant = await FrostParticipant.init(3, 5, 42n)  // this is me
+
+// Option 2: Let the library generate a random ID for you
+// Parameters: (threshold, totalParticipants)
+// const participant = await FrostParticipant.init(3, 5)  // auto-generates an ID
 
 // this public key is used to decrypt the shared key shards
 const myPublicKey = await participant.getPublicKey()
 
-// >> Send myPublicKey to machines 2, 3, 4, 5 via network <<
+// >> Send myPublicKey AND your participant.id to other participants via network <<
 
-// ... Receive publicKey2, publicKey3, publicKey4, publicKey5 from network ...
+// ... Receive public keys and IDs from other participants via network ...
+// Other participants might have IDs like 1337n, 9999n, 100n, 777n
 
 // call `registerPeerKey` for each peer
-await participant.registerPeerKey(2, publicKey2)
-await participant.registerPeerKey(3, publicKey3)
-await participant.registerPeerKey(4, publicKey4)
-await participant.registerPeerKey(5, publicKey5)
+await participant.registerPeerKey(1337n, publicKey1337)
+await participant.registerPeerKey(9999n, publicKey9999)
+await participant.registerPeerKey(100n, publicKey100)
+await participant.registerPeerKey(777n, publicKey777)
 
 // Round 1: Generate commitments and proof.
 // Broadcast these in the next step.
@@ -129,30 +130,30 @@ indicates a malicious or misconfigured participant.
 ```ts
 // >> Broadcast my commitments & proof to all machines <<
 
-// ... Receive commitments & proofs from machines 2, 3, 4, 5 ...
+// ... Receive commitments & proofs from other participants ...
 
-// Each machine sends you their { commitments, proof } from Round 1
+// Each participant sends you their { commitments, proof } from Round 1
 // You'll need the commitments later in Round 3.
-const { commitments: commitments2, proof: proof2 } = /* from machine 2 */
-const { commitments: commitments3, proof: proof3 } = /* from machine 3 */
-const { commitments: commitments4, proof: proof4 } = /* from machine 4 */
-const { commitments: commitments5, proof: proof5 } = /* from machine 5 */
+const { commitments: commitments1337, proof: proof1337 } = /* from participant 1337 */
+const { commitments: commitments9999, proof: proof9999 } = /* from participant 9999 */
+const { commitments: commitments100, proof: proof100 } = /* from participant 100 */
+const { commitments: commitments777, proof: proof777 } = /* from participant 777 */
 
 // Verify everyone's proof
-// the `n` after each number (`1n`, `2n`) means it is a BigInt
-participant.verifySchnorrProof(2n, proof2)  // from machine 2
-participant.verifySchnorrProof(3n, proof3)  // from machine 3
-participant.verifySchnorrProof(4n, proof4)  // from machine 4
-participant.verifySchnorrProof(5n, proof5)  // from machine 5
+// the `n` after each number means it is a BigInt
+participant.verifySchnorrProof(1337n, proof1337)
+participant.verifySchnorrProof(9999n, proof9999)
+participant.verifySchnorrProof(100n, proof100)
+participant.verifySchnorrProof(777n, proof777)
 
 // __Round 2: Generate encrypted shares__
 const encryptedShares = await participant.round2_generateShares()
 
 
-// >> Send encryptedShare.get(2) to machine 2 <<
-// >> Send encryptedShare.get(3) to machine 3 <<
-// >> Send encryptedShare.get(4) to machine 4 <<
-// >> Send encryptedShare.get(5) to machine 5 <<
+// >> Send encryptedShare.get(1337n) to participant 1337 <<
+// >> Send encryptedShare.get(9999n) to participant 9999 <<
+// >> Send encryptedShare.get(100n) to participant 100 <<
+// >> Send encryptedShare.get(777n) to participant 777 <<
 ```
 
 ### Receive Shares, Create a Public Key
@@ -171,18 +172,18 @@ detects malicious or faulty participants before computing the final secret
 share. If any verification fails, the protocol should be aborted.
 
 ```ts
-// ... Receive the encrypted shares from machines 2, 3, 4, 5 ...
+// ... Receive the encrypted shares from other participants ...
 
-await participant.receiveShare(2, shareFromMachine2, commitments2)
-await participant.receiveShare(3, shareFromMachine3, commitments3)
-await participant.receiveShare(4, shareFromMachine4, commitments4)
-await participant.receiveShare(5, shareFromMachine5, commitments5)
+await participant.receiveShare(1337n, shareFrom1337, commitments1337)
+await participant.receiveShare(9999n, shareFrom9999, commitments9999)
+await participant.receiveShare(100n, shareFrom100, commitments100)
+await participant.receiveShare(777n, shareFrom777, commitments777)
 
 // Round 3: Verify shares
-participant.verifyShare(2)  // true
-participant.verifyShare(3)  // true
-participant.verifyShare(4)  // true
-participant.verifyShare(5)  // true
+participant.verifyShare(1337n)  // true
+participant.verifyShare(9999n)  // true
+participant.verifyShare(100n)  // true
+participant.verifyShare(777n)  // true
 
 // Compute final key material
 const secret = participant.computeSecretShare()  // secret value
@@ -190,11 +191,11 @@ const myVerification = participant.computeVerificationShare()
 
 // This computes and sets the public key as `participant.publicKey`.
 const groupPublicKey = participant.computeGroupPublicKey([
-  commitments1,  // my own
-  commitments2,
-  commitments3,
-  commitments4,
-  commitments5
+  commitments42,  // my own (ID 42)
+  commitments1337,
+  commitments9999,
+  commitments100,
+  commitments777
 ])
 
 // ... share the `myVerification` with the other participants ...
@@ -308,92 +309,14 @@ console.log('Valid:', isValid)  // true
 
 - Each signer only uses their own secret share
 - No single machine ever sees the full private key
-- The private key doesn't exist anywhere - it's mathematically distributed
+- The private key doesn't exist anywhere - it is mathematically distributed
 - Any 3 machines can later collaborate to sign messages
 - Shares are encrypted during transmission (X25519 + AES-GCM)
 - All machines compute the same group public key
-- Lagrange interpolation happens during signing
 - The full secret key is never reconstructed
 
 
 ## API
-
-### `FrostDKG`
-
-Main class for running the DKG protocol.
-
-#### Constructor
-
-```ts
-new FrostDKG(threshold:number, totalParticipants:number)
-```
-
-- `threshold`: Minimum number of participants needed to sign (must be ≥ 2)
-- `totalParticipants`: Total number of participants (must be ≥ threshold)
-
-#### Methods
-
-##### `run`
-
-```ts
-class FrostDKG {
-    async run ():Promise<{
-        threshold:number;
-        n:number;
-        participants:ParticipantState[];
-        groupPublicKey:string;
-    }>
-}
-```
-
-Executes the complete DKG protocol and returns the result.
-
-##### `initialize`
-
-```ts
-class FrostDKG {
-    async initialize ():Promise<void>
-}
-```
-
-Initializes all participants with X25519 key pairs.
-
-##### `executeRound1`
-
-```ts
-class FrostDKG {
-    async executeRound1 ():Promise<void>
-}
-```
-
-Round 1: Generates polynomial commitments and Schnorr proofs of knowledge.
-
-##### `executeRound2`
-
-```ts
-class FrostDKG {
-    async executeRound2 ():Promise<void>
-}
-```
-
-Round 2: Generates and exchanges encrypted shares between participants.
-
-##### `executeRound3`
-
-```ts
-class FrostDKG {
-    async executeRound3 ():Promise<void>
-}
-```
-
-Round 3: Verifies received shares and computes final secret and
-verification shares.
-
-
-
---------------------------------
-
-
 
 ### `FrostParticipant`
 
@@ -406,18 +329,20 @@ Individual participant in the DKG protocol.
 ```ts
 class FrostParticipant {
     static async init (
-        id:number,
         threshold:number,
-        totalParticipants:number
+        totalParticipants:number,
+        id?:number|bigint
     ):Promise<FrostParticipant>
 }
 ```
 
 Creates and initializes a new FrostParticipant with an X25519 keypair.
 
-- `id`: Unique identifier for this participant (1-indexed)
-- `threshold`: Minimum number of participants needed for signing
-- `totalParticipants`: Total number of participants in the DKG
+* `threshold`: Minimum number of participants needed for signing
+* `totalParticipants`: Total number of participants in the DKG
+* `id` (optional): Unique identifier for this participant (can be any BigInt).
+  If not provided, a random 64-bit ID will be generated
+
 
 #### Methods
 
@@ -436,13 +361,16 @@ Returns the participant's X25519 public key for encrypted communication.
 ```ts
 class FrostParticipant {
     async registerPeerKey (
-        peerId:number,
+        peerId:number|bigint,
         publicKeyBytes:ArrayBuffer
     ):Promise<void>
 }
 ```
 
 Register another participant's public key for encrypted communication.
+
+- `peerId`: The peer's unique identifier (can be any BigInt)
+- `publicKeyBytes`: The peer's X25519 public key
 
 ##### `round1_generateCommitments`
 
@@ -691,4 +619,4 @@ This library uses the Web Crypto API and works in all modern browsers:
 * [@noble/curves](https://github.com/paulmillr/noble-curves) - Cryptographic
 * curves implementation
 * [Pedersen's Verifiable Secret Sharing](https://link.springer.com/chapter/10.1007/3-540-46766-1_9)
-* [source.ngetowrk/orbis/dkg](https://docs.source.network/orbis/concepts/dkg/)
+* [source.netowrk/orbis/dkg](https://docs.source.network/orbis/concepts/dkg/)
