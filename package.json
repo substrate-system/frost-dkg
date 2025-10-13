@@ -1,6 +1,6 @@
 {
   "name": "@substrate-system/frost-dkg",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "FROST distributed key generation",
   "type": "module",
   "exports": {
