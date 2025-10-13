@@ -5,7 +5,7 @@
 [![semantic versioning](https://img.shields.io/badge/semver-2.0.0-blue?logo=semver&style=flat-square)](https://semver.org/)
 [![Common Changelog](https://nichoth.github.io/badge/common-changelog.svg)](./CHANGELOG.md)
 [![install size](https://flat.badgen.net/packagephobia/install/@substrate-system/frost-dkg?v=1)](https://packagephobia.com/result?p=@substrate-system/frost-dkg)
-[![gzip size](https://img.shields.io/bundlephobia/minzip/@substrate-system/frost-dkg?style=flat-square&v=1)](https://bundlephobia.com/@substrate-system/frost-dkg)
+[![GZip size](https://flat.badgen.net/bundlephobia/minzip/@substrate-system/frost-dkg)](https://bundlephobia.com/package/@substrate-system/frost-dkg)
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
