@@ -3,6 +3,15 @@
   "version": "0.0.6",
   "description": "FROST distributed key generation",
   "type": "module",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "files": [
+    "./dist/*"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -13,15 +22,6 @@
       "require": "./dist/*.cjs"
     }
   },
-  "main": "dist/index.js",
-  "types": "./dist/index.d.ts",
-  "directories": {
-    "example": "example",
-    "test": "test"
-  },
-  "files": [
-    "./dist/*"
-  ],
   "scripts": {
     "lint": "eslint \"./**/*.{ts,js}\"",
     "test:browser": "esbuild ./test/index.ts --bundle | tapout",
