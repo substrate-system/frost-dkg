@@ -9,23 +9,6 @@
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
-A group of participants collaboratively generates a public-private keypair,
-and **no single party ever knows the complete private key**.
-The protocol produces a threshold signature
-scheme where any `t` out of `n` participants can sign messages, but fewer
-than `t` cannot.
-
-**_Featuring_**
-
-- **Threshold Cryptography**: Supports t-of-n threshold schemes
-  (e.g., 3-of-5, 2-of-3)
-- **Secure Share Distribution**: Encrypted share exchange using X25519 key
-  agreement and AES-GCM
-- **Zero-Knowledge Proofs**: Schnorr proofs of knowledge for
-  commitment verification
-- **Ed25519 Curve**: Built on Ed25519 elliptic curve
-
-
 <details><summary><h2>Contents</h2></summary>
 
 <!-- toc -->
@@ -60,6 +43,30 @@ than `t` cannot.
 <!-- tocstop -->
 
 </details>
+
+A group of participants collaboratively generates a public-private keypair,
+and **no single party ever knows the complete private key**.
+The protocol produces a threshold signature
+scheme where any `t` out of `n` participants can sign messages, but fewer
+than `t` cannot. Protocol is 3-round DKG:
+
+* Round 1: Commitment phase with Schnorr proofs of knowledge
+* Round 2: Encrypted share distribution (X25519 + AES-GCM)
+* Round 3: Verification using Pedersen commitments and group key computation
+
+_Featuring_
+
+- **Algorithm**: FROST DKG, based on
+  [Non-Interactive and Information-Theoretic Secure Verifiable Secret Sharing](https://link.springer.com/chapter/10.1007/3-540-46766-1_9)
+- Curve: Ed25519 elliptic curve
+- **Threshold Cryptography**: Supports t-of-n threshold schemes
+  (e.g., 3-of-5, 2-of-3)
+- **Secure Share Distribution**: Encrypted share exchange using X25519 key
+  agreement and AES-GCM
+- **Zero-Knowledge Proofs**: Schnorr proofs of knowledge for
+  commitment verification
+- **Ed25519 Curve**: Built on Ed25519 elliptic curve
+
 
 
 ## Install
