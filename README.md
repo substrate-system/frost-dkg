@@ -44,6 +44,11 @@
 
 </details>
 
+Use [Pedersen Verifiable Secret Sharing](https://www.ledger.com/academy/glossary/pedersen-verifiable-secret-sharing?utm_source=chatgpt.com)
+to generate key shares amongst different machines, and use
+[FROST (Flexible Round-Optimized Schnorr Threshold Signatures)](https://eprint.iacr.org/2020/852.pdf)
+to create valid Ed25519 signatures.
+
 A group of participants collaboratively generates a public-private keypair,
 and **no single party ever knows the complete private key**.
 The protocol produces a threshold signature
@@ -81,6 +86,10 @@ npm i -S @substrate-system/frost-dkg
 
 In a real life, each participant runs independently on different machines.
 (You would implement a network layer to pass messages between them.)
+
+This uses [Pedersen Verifiable Secret Sharing](https://www.ledger.com/academy/glossary/pedersen-verifiable-secret-sharing?utm_source=chatgpt.com)
+for the DKG part. Signatures generated via
+[FROST (Flexible Round-Optimized Schnorr Threshold Signatures)](https://eprint.iacr.org/2020/852.pdf).
 
 >
 > [!IMPORTANT]
