@@ -55,9 +55,9 @@ The protocol produces a threshold signature
 scheme where any `t` out of `n` participants can sign messages, but fewer
 than `t` cannot. Protocol is 3-round DKG:
 
-* Round 1: Commitment phase with Schnorr proofs of knowledge
-* Round 2: Encrypted share distribution (X25519 + AES-GCM)
-* Round 3: Verification using Pedersen commitments and group key computation
+1. Round 1: Commitment phase with Schnorr proofs of knowledge
+2. Round 2: Encrypted share distribution (X25519 + AES-GCM)
+3. Round 3: Verification using Pedersen commitments and group key computation
 
 _Featuring_
 
@@ -66,11 +66,11 @@ _Featuring_
 - Curve: Ed25519 elliptic curve
 - **Threshold Cryptography**: Supports t-of-n threshold schemes
   (e.g., 3-of-5, 2-of-3)
-- **Secure Share Distribution**: Encrypted share exchange using X25519 key
-  agreement and AES-GCM
+- **Secure Share Distribution**: Encrypted share exchange using X25519
+  and AES-GCM
 - **Zero-Knowledge Proofs**: Schnorr proofs of knowledge for
   commitment verification
-- **Ed25519 Curve**: Built on Ed25519 elliptic curve
+- **Ed25519 Curve**: Built on Ed25519
 
 
 
@@ -88,7 +88,7 @@ In a real life, each participant runs independently on different machines.
 (You would implement a network layer to pass messages between them.)
 
 This uses [Pedersen Verifiable Secret Sharing](https://www.ledger.com/academy/glossary/pedersen-verifiable-secret-sharing?utm_source=chatgpt.com)
-for the DKG part. Signatures generated via
+for the DKG part. Signatures are generated via
 [FROST (Flexible Round-Optimized Schnorr Threshold Signatures)](https://eprint.iacr.org/2020/852.pdf).
 
 >
