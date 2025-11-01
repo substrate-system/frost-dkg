@@ -52,7 +52,7 @@
     "@substrate-system/copy-button": "^0.5.18",
     "@substrate-system/css-normalize": "^0.0.13",
     "@substrate-system/debug": "^0.9.24",
-    "@substrate-system/tapout": "^0.0.24",
+    "@substrate-system/tapout": "^0.0.28",
     "@substrate-system/tapzero": "^0.10.15",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
